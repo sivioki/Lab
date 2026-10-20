@@ -8,6 +8,8 @@ keine externen Bibliotheken, keine Bilddateien.
 - Tippen lässt den Vogel nach oben flattern, Schwerkraft zieht ihn nach unten
 - Durch die Lücken zwischen den Röhren fliegen – jede Röhre gibt einen Punkt
 - Rekord wird gespeichert (`SharedPreferences`)
+- Soundeffekte für Flattern, Punkt, Aufprall und Absturz; Lautsprecher-Knopf oben rechts
+  (auf Start- und Game-Over-Bildschirm) schaltet den Ton stumm
 - Alle Größen skalieren mit der Bildschirmhöhe, läuft also auf jedem Handy gleich
 
 ### APK bekommen
@@ -28,3 +30,6 @@ entpacken und `app-debug.apk` aufs Handy kopieren und installieren
 
 - `app/src/main/java/com/sivioki/flappy/MainActivity.kt` – Vollbild-Activity
 - `app/src/main/java/com/sivioki/flappy/GameView.kt` – Spielschleife, Physik, Kollision und Zeichnen
+- `app/src/main/java/com/sivioki/flappy/Sounds.kt` – Soundeffekte über `SoundPool`
+- `tools/make_sounds.py` – erzeugt die WAV-Dateien in `app/src/main/res/raw/`
+  (`python3 tools/make_sounds.py`)

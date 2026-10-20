@@ -30,6 +30,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private class Cloud(var x: Float, val y: Float, val scale: Float, val speed: Float)
 
     private val prefs = context.getSharedPreferences("flappy", Context.MODE_PRIVATE)
+    private val sounds = Sounds(context).apply { muted = prefs.getBoolean("muted", false) }
 
     @Volatile private var running = false
     private var thread: Thread? = null
@@ -59,6 +60,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private var groundOffset = 0f
     private var gameOverAt = 0f
     private var flashAlpha = 0f
+    private var dieSoundAt = -1f
     private val pipes = ArrayList<Pipe>()
     private val clouds = ArrayList<Cloud>()
 
@@ -98,6 +100,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         color = Color.rgb(84, 56, 71); textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD
     }
     private val flashPaint = Paint().apply { color = Color.WHITE }
+    private val buttonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(90, 0, 0, 0) }
+    private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+    private val iconStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND
+    }
+    private val muteButton = RectF()
 
     private val rect = RectF()
     private val path = Path()
@@ -130,6 +138,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             birdOutline.strokeWidth = h * 0.003f
             panelBorder.strokeWidth = h * 0.006f
             textStroke.strokeWidth = h * 0.012f
+            iconStroke.strokeWidth = h * 0.005f
+            val b = h * 0.06f
+            val m = h * 0.025f
+            muteButton.set(w - m - b, m, w - m, m + b)
             skyPaint.shader = LinearGradient(
                 0f, 0f, 0f, groundY,
                 Color.rgb(78, 192, 202), Color.rgb(170, 230, 235), Shader.TileMode.CLAMP
@@ -159,6 +171,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         running = true
         thread = Thread(this, "game-loop").also { it.start() }
     }
+
+    fun release() = sounds.release()
 
     fun pause() {
         running = false
@@ -200,6 +214,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         birdVel = 0f
         score = 0
         newBest = false
+        dieSoundAt = -1f
         pipes.clear()
     }
 
@@ -237,6 +252,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                     if (!p.passed && p.x + pipeW < birdX) {
                         p.passed = true
                         score++
+                        sounds.point()
                     }
                 }
 
@@ -244,9 +260,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                     birdY = birdR
                     birdVel = 0f
                 }
-                if (birdY + birdR >= groundY || hitsPipe()) die()
+                if (birdY + birdR >= groundY) die(fellDown = true)
+                else if (hitsPipe()) die(fellDown = false)
             }
             State.GAME_OVER -> {
+                if (dieSoundAt >= 0f && time >= dieSoundAt) {
+                    dieSoundAt = -1f
+                    sounds.die()
+                }
                 // Let the bird fall to the ground after a crash
                 if (birdY + birdR < groundY) {
                     birdVel += gravity * dt
@@ -266,10 +287,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         return false
     }
 
-    private fun die() {
+    private fun die(fellDown: Boolean) {
         state = State.GAME_OVER
         gameOverAt = time
         flashAlpha = 1f
+        sounds.hit()
+        // After hitting a pipe the bird still falls, so the falling sound follows the crash
+        if (!fellDown) dieSoundAt = time + 0.25f
         if (score > best) {
             best = score
             newBest = true
@@ -281,13 +305,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked != MotionEvent.ACTION_DOWN) return true
         synchronized(lock) {
+            if (state != State.PLAYING && muteButton.contains(event.x, event.y)) {
+                sounds.muted = !sounds.muted
+                prefs.edit().putBoolean("muted", sounds.muted).apply()
+                return true
+            }
             when (state) {
                 State.READY -> {
                     state = State.PLAYING
                     birdVel = flapVel
                     spawnPipe(w + pipeW)
+                    sounds.flap()
                 }
-                State.PLAYING -> birdVel = flapVel
+                State.PLAYING -> {
+                    birdVel = flapVel
+                    sounds.flap()
+                }
                 State.GAME_OVER -> if (time - gameOverAt > 0.6f) reset()
             }
         }
@@ -313,9 +346,42 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             State.GAME_OVER -> drawGameOver(c)
         }
 
+        if (state != State.PLAYING) drawMuteButton(c)
+
         if (flashAlpha > 0f) {
             flashPaint.alpha = (flashAlpha * 200).toInt()
             c.drawRect(0f, 0f, w, h, flashPaint)
+        }
+    }
+
+    private fun drawMuteButton(c: Canvas) {
+        val b = muteButton
+        c.drawRoundRect(b, b.width() * 0.25f, b.width() * 0.25f, buttonPaint)
+        val s = b.width()
+        val cx = b.left + s * 0.42f
+        val cy = b.centerY()
+
+        // Speaker
+        path.reset()
+        path.moveTo(cx - s * 0.22f, cy - s * 0.1f)
+        path.lineTo(cx - s * 0.1f, cy - s * 0.1f)
+        path.lineTo(cx + s * 0.06f, cy - s * 0.24f)
+        path.lineTo(cx + s * 0.06f, cy + s * 0.24f)
+        path.lineTo(cx - s * 0.1f, cy + s * 0.1f)
+        path.lineTo(cx - s * 0.22f, cy + s * 0.1f)
+        path.close()
+        c.drawPath(path, iconPaint)
+
+        if (sounds.muted) {
+            val x = cx + s * 0.2f
+            val d = s * 0.1f
+            c.drawLine(x - d, cy - d, x + d, cy + d, iconStroke)
+            c.drawLine(x - d, cy + d, x + d, cy - d, iconStroke)
+        } else {
+            rect.set(cx - s * 0.08f, cy - s * 0.16f, cx + s * 0.2f, cy + s * 0.16f)
+            c.drawArc(rect, -50f, 100f, false, iconStroke)
+            rect.set(cx - s * 0.17f, cy - s * 0.28f, cx + s * 0.29f, cy + s * 0.28f)
+            c.drawArc(rect, -50f, 100f, false, iconStroke)
         }
     }
 
