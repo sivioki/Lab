@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Puffer-Rechner</title>
+  <meta name="description" content="Berechnet Einwaagen und Pipettiervolumina für Laborpuffer aus molarer Masse, Konzentration und Endvolumen – mit Messmitteln nach ISO 1042, ISO 648, ISO 4788 und ISO 8655.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="wrap">
+      <h1>Puffer-Rechner</h1>
+      <p class="sub">Einwaage und Pipettiervolumen aus molarer Masse, Konzentration und Endvolumen · Einheiten nach ISO 80000-9</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card" aria-labelledby="h-recipe">
+      <div class="card-head">
+        <h2 id="h-recipe">1 · Rezeptur</h2>
+        <div class="row-actions no-print">
+          <label class="inline">
+            <span class="sr-only">Vorlage</span>
+            <select id="preset">
+              <option value="">Vorlage laden …</option>
+            </select>
+          </label>
+          <label class="inline">
+            <span class="sr-only">Gespeicherte Rezeptur</span>
+            <select id="saved">
+              <option value="">Gespeichert …</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="grid meta">
+        <label>Bezeichnung
+          <input id="name" type="text" placeholder="z. B. PBS 1×">
+        </label>
+        <label>Ziel-pH
+          <input id="ph" type="text" inputmode="decimal" placeholder="z. B. 7,4">
+        </label>
+        <label>Temperatur (°C)
+          <input id="temp" type="text" inputmode="decimal" value="20">
+        </label>
+        <label>Bearbeiter/in
+          <input id="operator" type="text" placeholder="Name">
+        </label>
+        <label>Charge / Ansatz-Nr.
+          <input id="batch" type="text" placeholder="optional">
+        </label>
+        <label class="span-all">Hinweise
+          <textarea id="notes" rows="2" placeholder="z. B. pH mit HCl einstellen, sterilfiltrieren"></textarea>
+        </label>
+      </div>
+
+      <div id="components" class="components"></div>
+
+      <div class="actions no-print">
+        <button type="button" id="add-comp" class="btn">+ Komponente</button>
+        <button type="button" id="clear" class="btn ghost">Rezeptur leeren</button>
+      </div>
+      <datalist id="chem-list"></datalist>
+    </section>
+
+    <section class="card" aria-labelledby="h-vol">
+      <h2 id="h-vol">2 · Endvolumina</h2>
+      <p class="hint">Mehrere Volumina möglich. Schnellwahl: Nennvolumina der Messkolben nach ISO 1042.</p>
+      <div id="volumes" class="chips"></div>
+      <form id="vol-form" class="vol-form no-print">
+        <label class="inline">
+          <span class="sr-only">Volumen</span>
+          <input id="vol-value" type="text" inputmode="decimal" placeholder="Volumen" required>
+        </label>
+        <label class="inline">
+          <span class="sr-only">Einheit</span>
+          <select id="vol-unit">
+            <option>mL</option>
+            <option>L</option>
+            <option>µL</option>
+          </select>
+        </label>
+        <button type="submit" class="btn">Hinzufügen</button>
+      </form>
+      <div id="iso-quick" class="quick no-print" aria-label="ISO 1042 Nennvolumina"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-res">
+      <div class="card-head">
+        <h2 id="h-res">3 · Ergebnis</h2>
+        <div class="row-actions no-print">
+          <button type="button" id="save" class="btn ghost">Speichern</button>
+          <button type="button" id="share" class="btn ghost">Link kopieren</button>
+          <button type="button" id="copy" class="btn ghost">Tabelle kopieren</button>
+          <button type="button" id="csv" class="btn ghost">CSV</button>
+          <button type="button" id="print" class="btn">Protokoll drucken</button>
+        </div>
+      </div>
+      <p class="print-only" id="print-meta"></p>
+      <div id="overview"></div>
+      <div id="details"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-proc">
+      <h2 id="h-proc">4 · Arbeitsanweisung</h2>
+      <ol id="procedure" class="procedure"></ol>
+    </section>
+
+    <section class="card small" aria-labelledby="h-norm">
+      <h2 id="h-norm">Normbezug und Formeln</h2>
+      <ul class="refs">
+        <li><strong>ISO 80000-9</strong> – Größen und Einheiten: Stoffmenge <i>n</i> (mol), molare Masse <i>M</i> (g/mol), Stoffmengenkonzentration <i>c</i> (mol/L).</li>
+        <li><strong>ISO 1042</strong> – Messkolben, Klasse A (Auffüllen auf Endvolumen).</li>
+        <li><strong>ISO 648</strong> – Vollpipetten, Klasse A.</li>
+        <li><strong>ISO 4788</strong> – Messzylinder, Klasse A.</li>
+        <li><strong>ISO 8655-2</strong> – Kolbenhubpipetten; angegeben ist die max. systematische Messabweichung.</li>
+        <li><strong>ISO 3696</strong> – Wasser für analytische Zwecke (für Puffer mind. Qualität 3, für Analytik Qualität 2).</li>
+      </ul>
+      <div class="formulas">
+        <p>Feststoff: <code>m = c · V · M · 100 / Reinheit</code></p>
+        <p>Flüssigkeit: <code>V<sub>R</sub> = c · V · M · 100 / (w · ρ)</code></p>
+        <p>Stammlösung: <code>V<sub>1</sub> = c<sub>2</sub> · V<sub>2</sub> / c<sub>1</sub></code></p>
+        <p>Massenkonzentration: <code>m = β · V</code>, % (w/v) = g/100 mL</p>
+      </div>
+      <p class="hint">Molare Massen, Reinheiten und Dichten der Vorlagen sind Richtwerte – stets mit Etikett bzw. Analysenzertifikat der verwendeten Charge abgleichen (Hydratstufe beachten).</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/calc.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
