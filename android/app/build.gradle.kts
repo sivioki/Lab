@@ -17,10 +17,9 @@ val copyGame by tasks.registering(Copy::class) {
             when {
                 line.contains("fonts.googleapis.com/css2") -> "<link rel=\"stylesheet\" href=\"vendor/fonts/fonts.css\">"
                 line.contains("rel=\"preconnect\"") -> ""
-                else -> line.replace(
-                    "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
-                    "vendor/three.min.js"
-                )
+                else -> line
+                    .replace("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js", "vendor/three.min.js")
+                    .replace("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/", "vendor/three-examples/")
             }
         }
     }
@@ -35,8 +34,8 @@ android {
         applicationId = "de.astrorun.game"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.3.1"
+        versionCode = 6
+        versionName = "1.4"
     }
 
     sourceSets["main"].assets.srcDir(wwwOut)

@@ -80,7 +80,7 @@ canvas { display: block; }
 
 #alienWarn {
   position: absolute; inset: 0; opacity: 0; transition: opacity .25s;
-  box-shadow: inset 0 0 90px 30px rgba(141, 255, 79, .38);
+  box-shadow: inset 0 0 70px 12px rgba(141, 255, 79, .26);
 }
 #alienWarn.on { opacity: 1; }
 .badge.alien { color: var(--alien); }
@@ -204,6 +204,7 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
       <button class="btn" id="resumeBtn" type="button">Weiter</button>
       <button class="btn ghost" id="quitBtn" type="button">Hauptmenü</button>
       <button class="btn ghost" id="soundBtn" type="button">Ton: an</button>
+      <button class="btn ghost" id="gfxBtn" type="button">Grafik: Auto</button>
     </div>
   </div>
 </div>
@@ -231,9 +232,28 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 <script>
 (() => {
 'use strict';
+
+// Farben werden als sRGB angegeben, gerechnet wird physikalisch korrekt im linearen Raum
+{
+  const setHex = THREE.Color.prototype.setHex;
+  THREE.Color.prototype.setHex = function (hex) { setHex.call(this, hex); return this.convertSRGBToLinear(); };
+}
+const cssHex = n => '#' + n.toString(16).padStart(6, '0');
+const mixHex = (a, b, t) => {
+  const c = (n, sh) => (n >> sh) & 255;
+  const m = sh => Math.round(c(a, sh) + (c(b, sh) - c(a, sh)) * t);
+  return (m(16) << 16) | (m(8) << 8) | m(0);
+};
+const scaleHex = (a, k) => mixHex(0, a, k);
 
 // ---------- Konstanten ----------
 const LANE = 2.2;            // Abstand der drei Spuren
@@ -247,6 +267,7 @@ const PLAYER_H = 1.8, SLIDE_H = 0.75;
 const ALIEN_FAR = 16;        // ab diesem Abstand sind die Aliens abgehängt
 const ALIEN_NEAR = 6;        // näher als das: nächstes Stolpern ist das Ende
 
+const TERRAIN = [{ a: 6, f: 0.016 }, { a: 11, f: 0.011 }, { a: 4, f: 0.022 }, { a: 9, f: 0.01, lava: 1 }, { a: 7, f: 0.014 }];
 const THEMES = [
   { name: 'Mond', price: 0, diff0: 0, desc: 'Geringe Schwerkraft – Sprünge tragen weit', sky: 0x03040a, fog: 0x0b0d17, fogNear: 45, fogFar: 200,
     ground: 0x4c4c55, groundEm: 0x000000, path: 0x8d909b, rail: 0x4fd8ff, obst: 0xb9bcc6, obstEm: 0x000000,
@@ -329,6 +350,9 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2))
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
 document.body.prepend(renderer.domElement);
 const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
@@ -337,7 +361,8 @@ scene.background = new THREE.Color(THEMES[0].fog);
 scene.fog = new THREE.Fog(THEMES[0].fog, THEMES[0].fogNear, THEMES[0].fogFar);
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 1200);
 
-const hemi = new THREE.HemisphereLight(THEMES[0].hemiSky, THEMES[0].hemiGround, 0.5);
+const hemi = new THREE.HemisphereLight(THEMES[0].hemiSky, THEMES[0].hemiGround, 0.85);
+const SUN_K = 2.6; // Sonnenstärke im linearen Lichtmodell
 scene.add(hemi);
 const SUN_OFF = new THREE.Vector3(-26, 48, 18);
 const sun = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -349,6 +374,64 @@ scene.add(sun, sun.target);
 // farbiges Gegenlicht für Konturen
 const rim = new THREE.DirectionalLight(THEMES[0].rail, 0.45);
 scene.add(rim, rim.target);
+
+// ---------- Grafikqualität & Nachbearbeitung ----------
+// Hoch: Bloom, Kantenglättung, feine Schatten. Mittel: Bloom, gröbere Schatten. Niedrig: ohne Bloom und Schatten.
+const QUALITY = {
+  high: { label: 'Hoch', pr: 2, bloom: true, msaa: 4, shadow: 2048, soft: true },
+  medium: { label: 'Mittel', pr: 1.5, bloom: true, msaa: 0, shadow: 1024, soft: false },
+  low: { label: 'Niedrig', pr: 1, bloom: false, msaa: 0, shadow: 0, soft: false },
+};
+let qualitySetting = store.get('astroRunQuality') || 'auto';
+let quality = qualitySetting !== 'auto' && QUALITY[qualitySetting] ? qualitySetting : (store.get('astroRunAutoQ') || (coarse ? 'medium' : 'high'));
+if (!QUALITY[quality]) quality = 'medium';
+// Abschluss: Vignette, feines Filmkorn, Umrechnung nach sRGB
+const FINAL_SHADER = {
+  uniforms: { tDiffuse: { value: null }, time: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float time; varying vec2 vUv;
+    float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + time) * 43758.5453); }
+    void main(){
+      vec4 c = texture2D(tDiffuse, vUv);
+      float d = length((vUv - 0.5) * vec2(1.1, 1.0));
+      c.rgb *= mix(1.0, smoothstep(0.9, 0.3, d), 0.4);
+      c = LinearTosRGB(c);
+      c.rgb += (rnd(vUv * 731.0) - 0.5) * 0.025;
+      gl_FragColor = c;
+    }`,
+};
+let composer = null, finalPass = null;
+function buildComposer() {
+  if (composer) { composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); composer = null; }
+  const Q = QUALITY[quality];
+  if (!Q.bloom || !THREE.EffectComposer || !THREE.UnrealBloomPass) return;
+  const gl2 = renderer.capabilities.isWebGL2;
+  const opts = { type: gl2 ? THREE.HalfFloatType : THREE.UnsignedByteType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat };
+  const rt = gl2 && Q.msaa && THREE.WebGLMultisampleRenderTarget ? new THREE.WebGLMultisampleRenderTarget(1, 1, opts) : new THREE.WebGLRenderTarget(1, 1, opts);
+  if (gl2 && Q.msaa) rt.samples = Q.msaa;
+  composer = new THREE.EffectComposer(renderer, rt);
+  composer.setPixelRatio(renderer.getPixelRatio());
+  composer.setSize(window.innerWidth, window.innerHeight);
+  composer.addPass(new THREE.RenderPass(scene, camera));
+  composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.55, 0.5, 0.86));
+  finalPass = new THREE.ShaderPass(FINAL_SHADER);
+  composer.addPass(finalPass);
+}
+function applyQuality() {
+  const Q = QUALITY[quality];
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.pr));
+  renderer.shadowMap.enabled = Q.shadow > 0;
+  renderer.shadowMap.type = Q.soft ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+  sun.castShadow = Q.shadow > 0;
+  if (Q.shadow) {
+    sun.shadow.mapSize.set(Q.shadow, Q.shadow);
+    if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+  }
+  scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; }); });
+  for (const set of MATS) for (const k in set) set[k].needsUpdate = true;
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  buildComposer();
+}
 
 // ---------- Rauschen ----------
 function hash3(x, y, z) { const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return v - Math.floor(v); }
@@ -424,6 +507,7 @@ function canvasTex(w, h, draw, repeat) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding;
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
   t.anisotropy = maxAniso;
   return t;
@@ -461,6 +545,27 @@ const panelTex = canvasTex(256, 256, (g, w, h) => {
   g.fillStyle = 'rgba(0,0,0,0.5)'; // Rillen für Halt
   for (let y = 140; y < 184; y += 8) g.fillRect(20, y, 216, 3);
   for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(0,0,0,${Math.random() * 0.15})`; g.beginPath(); const x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); g.lineTo(x + rand(-30, 30), y + rand(-6, 6)); g.stroke(); }
+}, true);
+// Gesteinsstruktur (Farbe und Relief) für Felsen und Landschaft
+const rockTex = canvasTex(256, 256, (g, w, h) => {
+  const img = g.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const v = 150 + (vnoise(x / 14, y / 14, 3) - 0.5) * 110 + (vnoise(x / 4, y / 4, 9) - 0.5) * 60 + Math.random() * 18;
+    const i = (y * w + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = clamp(v, 0, 255); img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  g.strokeStyle = 'rgba(30,30,30,0.5)';
+  for (let i = 0; i < 18; i++) { g.lineWidth = rand(0.5, 2); g.beginPath(); let x = rand(0, w), y = rand(0, h); g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += rand(-25, 25); y += rand(-25, 25); g.lineTo(x, y); } g.stroke(); }
+}, true);
+// Anzugstoff: feines Gewebe mit Nähten
+const fabricTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = '#f2f2f2'; g.fillRect(0, 0, w, h);
+  for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) { const v = 225 + ((x + y) % 4 ? 12 : -8) + Math.random() * 14; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 2, 2); }
+  g.strokeStyle = 'rgba(120,120,130,0.55)'; g.lineWidth = 2;
+  for (const y of [60, 140, 210]) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y + 6); g.stroke(); }
+  for (const x of [80, 180]) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x - 4, h); g.stroke(); }
+  g.fillStyle = 'rgba(100,100,110,0.12)';
+  for (let i = 0; i < 30; i++) { g.beginPath(); g.ellipse(rand(0, w), rand(0, h), rand(10, 40), rand(2, 6), rand(0, 3), 0, 7); g.fill(); }
 }, true);
 const dotTex = canvasTex(64, 64, (g) => {
   const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -503,9 +608,33 @@ function mountainTexture(style, near) {
 
 const GROUND_SIZE = 1400, GROUND_REP = 70;
 const groundTex = noiseTexture(256, GROUND_REP);
-const groundMat = new THREE.MeshLambertMaterial({ color: THEMES[0].ground, emissive: THEMES[0].groundEm, map: groundTex });
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE), groundMat);
-ground.rotation.x = -Math.PI / 2; ground.position.y = GROUND_Y;
+// Höhe des Geländes an einer Weltposition (gleiche Formel wie im Shader)
+function groundHeight(x, z) {
+  const { a, f } = TERRAIN[runTheme];
+  return GROUND_Y + a * (0.5 * Math.sin(x * f * 0.9 + 1.7) * Math.cos(z * f * 1.1 - 0.4) + 0.3 * Math.sin((x * 0.6 + z * 0.8) * f * 2.3 + 2.1) + 0.2 * Math.sin((x * 0.8 - z * 0.6) * f * 4.7 + 0.5));
+}
+const groundU = { terrA: { value: 6 }, terrF: { value: 0.016 }, lavaValley: { value: 0 } };
+const groundMat = new THREE.MeshStandardMaterial({ color: THEMES[0].ground, emissive: THEMES[0].groundEm, map: groundTex, bumpMap: groundTex, bumpScale: 0.6, roughness: 0.96, metalness: 0 });
+groundMat.onBeforeCompile = (sh) => {
+  Object.assign(sh.uniforms, groundU);
+  const fn = `uniform float terrA; uniform float terrF; varying float vTerr;
+    float terrH(vec2 p) { float f = terrF;
+      return terrA * (0.5 * sin(p.x * f * 0.9 + 1.7) * cos(p.y * f * 1.1 - 0.4) + 0.3 * sin((p.x * 0.6 + p.y * 0.8) * f * 2.3 + 2.1) + 0.2 * sin((p.x * 0.8 - p.y * 0.6) * f * 4.7 + 0.5)); }
+  `;
+  sh.vertexShader = fn + sh.vertexShader
+    .replace('#include <beginnormal_vertex>', `vec4 tw = modelMatrix * vec4(position, 1.0);
+      float th = terrH(tw.xz);
+      vTerr = th / max(terrA, 0.001);
+      vec3 objectNormal = normalize(vec3(terrH(tw.xz - vec2(1.5, 0.0)) - terrH(tw.xz + vec2(1.5, 0.0)), 3.0, terrH(tw.xz - vec2(0.0, 1.5)) - terrH(tw.xz + vec2(0.0, 1.5))));`)
+    .replace('#include <begin_vertex>', 'vec3 transformed = vec3(position); transformed.y += th;');
+  sh.fragmentShader = 'uniform float lavaValley; varying float vTerr;\n' + sh.fragmentShader
+    .replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb *= 0.75 + 0.35 * (vTerr * 0.5 + 0.5);')
+    .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance *= mix(1.0, smoothstep(0.15, -0.6, vTerr) * 1.6, lavaValley);');
+};
+const GROUND_SEG = 220, GROUND_STEP = GROUND_SIZE / GROUND_SEG;
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE, GROUND_SEG, GROUND_SEG).rotateX(-Math.PI / 2), groundMat);
+ground.position.y = GROUND_Y;
+ground.frustumCulled = false;
 ground.receiveShadow = false;
 scene.add(ground);
 
@@ -525,6 +654,8 @@ const skyMat = new THREE.ShaderMaterial({
       float n = n3(d * 3.0) * 0.55 + n3(d * 8.0) * 0.3 + n3(d * 21.0) * 0.15;
       c += nebula * nebulaK * band * smoothstep(0.35, 0.85, n) * smoothstep(0.0, 0.3, y);
       gl_FragColor = vec4(c, 1.0);
+      #include <tonemapping_fragment>
+      #include <encodings_fragment>
     }`,
   side: THREE.BackSide, depthWrite: false, fog: false,
 });
@@ -635,12 +766,12 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 const envCache = [];
 function envMapFor(i) {
   if (envCache[i]) return envCache[i];
-  const T = THEMES[i], css = h => '#' + new THREE.Color(h).getHexString();
+  const T = THEMES[i], css = cssHex;
   const tex = canvasTex(256, 128, (g, w, h) => {
     const gr = g.createLinearGradient(0, 0, 0, h);
-    gr.addColorStop(0, css(new THREE.Color(T.skyTop).lerp(new THREE.Color(T.hemiSky), 0.35)));
-    gr.addColorStop(0.48, css(new THREE.Color(T.fog).lerp(new THREE.Color(T.hemiSky), 0.3)));
-    gr.addColorStop(0.52, css(T.ground)); gr.addColorStop(1, css(new THREE.Color(T.ground).multiplyScalar(0.4)));
+    gr.addColorStop(0, css(mixHex(T.skyTop, T.hemiSky, 0.35)));
+    gr.addColorStop(0.48, css(mixHex(T.fog, T.hemiSky, 0.3)));
+    gr.addColorStop(0.52, css(T.ground)); gr.addColorStop(1, css(scaleHex(T.ground, 0.4)));
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
     const sg = g.createRadialGradient(w * 0.62, h * 0.22, 0, w * 0.62, h * 0.22, 26);
     sg.addColorStop(0, 'rgba(255,255,255,1)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
@@ -717,21 +848,25 @@ function themeMaterials(t) {
     rail: new THREE.MeshBasicMaterial({ color: t.rail }),
     lane: new THREE.MeshBasicMaterial({ color: t.rail, transparent: true, opacity: 0.28 }),
     lamp: new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.35, metalness: 0.85 }),
-    obst: new THREE.MeshStandardMaterial({ color: t.obst, emissive: t.obstEm, roughness: 0.9, metalness: 0.05, flatShading: true }),
+    obst: new THREE.MeshStandardMaterial({ color: t.obst, emissive: t.obstEm, map: rockTex, bumpMap: rockTex, bumpScale: 0.04, roughness: 0.92, metalness: 0.02, flatShading: true }),
     obstIce: new THREE.MeshStandardMaterial({ color: t.obst, emissive: t.obstEm, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.82, flatShading: true }),
     wall: new THREE.MeshStandardMaterial({ color: dark(t.obst, 0.35), emissive: t.obstEm, roughness: 0.22, metalness: 0.85 }),
     laser: new THREE.MeshBasicMaterial({ color: 0xff2a40 }),
     laserGlow: new THREE.MeshBasicMaterial({ color: 0xff2a40, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false }),
     hazard: new THREE.MeshStandardMaterial({ color: 0xffbf1a, roughness: 0.5, metalness: 0.2 }),
     black: new THREE.MeshStandardMaterial({ color: 0x16171b, roughness: 0.6, metalness: 0.3 }),
-    decor: new THREE.MeshStandardMaterial({ color: t.decorCol, emissive: t.decorEm, roughness: 0.95, flatShading: true }),
-    decor2: new THREE.MeshStandardMaterial({ color: t.decorCol2, roughness: 0.92, flatShading: true }),
+    decor: new THREE.MeshStandardMaterial({ color: t.decorCol, emissive: t.decorEm, map: rockTex, bumpMap: rockTex, bumpScale: 0.3, roughness: 0.95, flatShading: true }),
+    decor2: new THREE.MeshStandardMaterial({ color: t.decorCol2, map: rockTex, bumpMap: rockTex, bumpScale: 0.3, roughness: 0.92, flatShading: true }),
     ice: new THREE.MeshStandardMaterial({ color: 0xbfe6ff, emissive: 0x16446e, roughness: 0.06, metalness: 0.15, transparent: true, opacity: 0.75, flatShading: true }),
     glow: new THREE.MeshBasicMaterial({ color: t.glow }),
     glow2: new THREE.MeshBasicMaterial({ color: t.glow2 }),
+    // leuchtende, aber schattierte Oberflächen (z. B. Pilzhüte)
+    lit: new THREE.MeshStandardMaterial({ color: t.glow, emissive: t.glow, emissiveIntensity: 0.45, roughness: 0.55, map: rockTex }),
+    lit2: new THREE.MeshStandardMaterial({ color: t.glow2, emissive: t.glow2, emissiveIntensity: 0.45, roughness: 0.55, map: rockTex }),
     metal: new THREE.MeshStandardMaterial({ color: 0xc9cdd6, roughness: 0.3, metalness: 0.9 }),
   };
   for (const k of ['path', 'pathDark', 'lamp', 'hazard', 'black']) M[k].userData.receive = true;
+  for (const k in M) if (M[k].isMeshBasicMaterial) M[k].toneMapped = false;
   for (const k of ['obst', 'obstIce', 'wall', 'metal']) { M[k].userData.cast = true; M[k].userData.receive = true; }
   return M;
 }
@@ -741,13 +876,13 @@ const MATS = THEMES.map(themeMaterials);
 function buildAstronaut() {
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
-  const suit = new THREE.MeshStandardMaterial({ color: 0xf3f4f6, roughness: 0.72, metalness: 0.02 });
+  const suit = new THREE.MeshStandardMaterial({ color: 0xf3f4f6, map: fabricTex, bumpMap: fabricTex, bumpScale: 0.012, roughness: 0.78, metalness: 0.02 });
   const suitShade = new THREE.MeshStandardMaterial({ color: 0xd8dbe2, roughness: 0.8 });
   const grey = new THREE.MeshStandardMaterial({ color: 0x6e7584, roughness: 0.45, metalness: 0.6 });
   const darkM = new THREE.MeshStandardMaterial({ color: 0x23262d, roughness: 0.5, metalness: 0.4 });
   const orange = new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.55 });
   const visorMat = new THREE.MeshStandardMaterial({ color: 0xffb02a, emissive: 0x2a1400, metalness: 1, roughness: 0.06, envMapIntensity: 2.2 });
-  const cyan = new THREE.MeshBasicMaterial({ color: 0x4fd8ff });
+  const cyan = new THREE.MeshBasicMaterial({ color: 0x4fd8ff, toneMapped: false });
   const red = new THREE.MeshBasicMaterial({ color: 0xff4a3f });
   const green = new THREE.MeshBasicMaterial({ color: 0x7dff6a });
   const add = (parent, geo, mat, sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); parent.add(m); return m; };
@@ -983,7 +1118,8 @@ function buildSegment(seg) {
     // Stützpfeiler mit Streben
     for (let p = a + 6; p < b - 3; p += 26) {
       for (const side of [-1, 1]) {
-        placeMesh(seg, GEO.pillar, M.pathDark, p, side * 2.4, (GROUND_Y - 1.4) / 2, 1, -GROUND_Y - 1.4, 1);
+        const w = segPoint(seg, p, side * 2.4, 0, decorV), gy = groundHeight(w.x, w.z) - 1;
+        placeMesh(seg, GEO.pillar, M.pathDark, p, side * 2.4, (gy - 1.4) / 2, 1, -gy - 1.4, 1);
         const br = placeMesh(seg, GEO.box, M.pathDark, p, side * 1.2, -5, 0.2, 9, 0.2);
         br.rotation.order = 'YXZ'; br.rotation.z = side * 0.25;
       }
@@ -1094,8 +1230,10 @@ function buildLowObstacle(seg, T, M, s, x) {
   }
 }
 
+const decorV = new THREE.Vector3();
 function addDecor(seg, T, M, s, side, x) {
-  const base = GROUND_Y;
+  const w = segPoint(seg, s, x, 0, decorV);
+  const base = groundHeight(w.x, w.z) - 1.2;
   const put = (geo, mat, ds, dx, y, sx, sy, sz, yaw) => placeMesh(seg, geo, mat, s + ds, x + dx, y, sx, sy, sz, yaw === undefined ? rand(0, 6) : yaw);
   const boulders = (n, smin, smax, mat) => { for (let i = 0; i < n; i++) { const b = rand(smin, smax); put(pick(GEO.rockD), mat || M.decor, rand(-6, 6), rand(-6, 6), base + b * 0.35, b, b * 0.7, b); } };
   const r = Math.random();
@@ -1128,7 +1266,7 @@ function addDecor(seg, T, M, s, side, x) {
           m.rotation.order = 'YXZ'; m.rotation.x = rand(-0.35, 0.35); m.rotation.z = rand(-0.35, 0.35);
         }
       } else if (r < 0.8) boulders(randi(2, 4), 2, 5, M.decor2);
-      else { const len = rand(20, 45); put(GEO.box, M.glow, 0, 0, base + 0.05, rand(0.3, 0.8), 0.1, len); }
+      else { const R = rand(1.5, 3); put(GEO.sphere, M.ice, 0, 0, base + 1.2, R * 2, R, R * 1.4); }
       break;
     }
     case 'basalt': { // Vulkanus
@@ -1143,13 +1281,13 @@ function addDecor(seg, T, M, s, side, x) {
         const R = rand(18, 30), h = rand(16, 30);
         put(GEO.volcano, M.decor2, 0, side * 20, base, R, h, R);
         put(GEO.disc, M.glow2, 0, side * 20, base + h * 0.87, R * 0.2, 1, R * 0.2);
-      } else if (r < 0.85) { const len = rand(30, 70); put(GEO.box, M.glow2, 0, 0, base + 0.05, rand(1.5, 4), 0.1, len); }
+      } else if (r < 0.85) { for (let i = 0; i < 3; i++) put(pick(GEO.shard), M.glow2, rand(-5, 5), rand(-5, 5), base + 1.4, rand(0.6, 1.4), rand(0.5, 1), rand(0.6, 1.4)); }
       else boulders(randi(2, 4), 1.5, 4);
       break;
     }
     case 'mushroom': { // Xenon
       if (r < 0.5) {
-        const h = rand(10, 34), R = rand(4, 10), glowM = Math.random() < 0.6 ? M.glow : M.glow2;
+        const h = rand(10, 34), R = rand(4, 10), glowM = Math.random() < 0.6 ? M.lit : M.lit2;
         put(GEO.stem, M.decor2, 0, 0, base, R * 0.9, h, R * 0.9);
         put(GEO.cap, glowM, 0, 0, base + h - R * 0.1, R, R * 0.7, R);
         for (let i = 0; i < 6; i++) { const a = rand(0, 6.3), rr = R * rand(0.3, 0.8); put(GEO.sphere, M.decor2, Math.cos(a) * rr, Math.sin(a) * rr, base + h + R * 0.25, R * 0.09, R * 0.06, R * 0.09); }
@@ -1211,10 +1349,11 @@ const ALIEN_GEO = {
 };
 function buildAlien(scale, skinHex, glowHex) {
   const root = new THREE.Group();
-  const skin = new THREE.MeshStandardMaterial({ color: skinHex, emissive: new THREE.Color(skinHex).multiplyScalar(0.12), roughness: 0.35, metalness: 0.1 });
+  // feuchte, glänzende Haut
+  const skin = new THREE.MeshPhysicalMaterial({ color: skinHex, emissive: new THREE.Color(skinHex).multiplyScalar(0.04), roughness: 0.45, metalness: 0.05, clearcoat: 0.8, clearcoatRoughness: 0.25, map: rockTex });
   const shell = new THREE.MeshStandardMaterial({ color: 0x2a1840, roughness: 0.25, metalness: 0.75 });
   const eye = new THREE.MeshStandardMaterial({ color: 0x020203, emissive: 0x0a2a10, roughness: 0.02, metalness: 0.5, envMapIntensity: 2 });
-  const glow = new THREE.MeshBasicMaterial({ color: glowHex });
+  const glow = new THREE.MeshBasicMaterial({ color: glowHex, toneMapped: false });
   const add = (parent, geo, mat, sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); parent.add(m); return m; };
   const body = new THREE.Group(); root.add(body);
   add(body, ALIEN_GEO.torso, shell, 1, 1, 0.8, 0, 1.35, 0);
@@ -1252,7 +1391,7 @@ function buildAlien(scale, skinHex, glowHex) {
   scene.add(root);
   return { root, body, head, legL: L.hip, legR: R.hip, kneeL: L.knee, kneeR: R.knee, armL: AL.hip, armR: AR.hip, elbowL: AL.knee, elbowR: AR.knee, phase: Math.random() * 6 };
 }
-const aliens = [buildAlien(0.8, 0x8dff4f, 0xd9ff3d), buildAlien(0.75, 0x5fe0a0, 0x3dfff0), buildAlien(0.85, 0xa6ff3f, 0xff4af0)];
+const aliens = [buildAlien(0.8, 0x5aa832, 0xd9ff3d), buildAlien(0.75, 0x3c9a7a, 0x3dfff0), buildAlien(0.85, 0x7a9c2a, 0xff4af0)];
 const ALIEN_SIDE = [0, -1.7, 1.7], ALIEN_LAG = [1.8, 0, 0.7]; // der mittlere läuft hinten, damit der Astronaut sichtbar bleibt
 
 // Spur des Spielers, damit die Aliens denselben Weg laufen (auch um Kurven)
@@ -1304,7 +1443,7 @@ function applyEnvInstant(i) {
   scene.fog.near = T.fogNear; scene.fog.far = T.fogFar;
   groundMat.color.setHex(T.ground); groundMat.emissive.setHex(T.groundEm);
   hemi.color.setHex(T.hemiSky); hemi.groundColor.setHex(T.hemiGround);
-  sun.color.setHex(T.sun); sun.intensity = T.sunI; starMat.opacity = T.stars;
+  sun.color.setHex(T.sun); sun.intensity = T.sunI * SUN_K; starMat.opacity = T.stars;
   skyBodies.forEach((b, k) => b.visible = k === i);
   skyMat.uniforms.top.value.setHex(T.skyTop); skyMat.uniforms.horizon.value.setHex(T.fog);
   skyMat.uniforms.nebula.value.setHex(T.nebula); skyMat.uniforms.nebulaK.value = T.nebulaK;
@@ -1318,6 +1457,7 @@ function applyEnvInstant(i) {
   partMat.color.setHex(T.part.color); partMat.size = T.part.size;
   partMat.blending = T.part.add ? THREE.AdditiveBlending : THREE.NormalBlending; partMat.needsUpdate = true;
   partGeo.setDrawRange(0, T.part.n);
+  groundU.terrA.value = TERRAIN[i].a; groundU.terrF.value = TERRAIN[i].f; groundU.lavaValley.value = TERRAIN[i].lava || 0;
   envTheme = i;
 }
 function lerpEnv(dt) {
@@ -1328,7 +1468,7 @@ function lerpEnv(dt) {
   lc(groundMat.color, T.ground); lc(groundMat.emissive, T.groundEm);
   lc(hemi.color, T.hemiSky); lc(hemi.groundColor, T.hemiGround); lc(sun.color, T.sun);
   scene.fog.near += (T.fogNear - scene.fog.near) * k; scene.fog.far += (T.fogFar - scene.fog.far) * k;
-  sun.intensity += (T.sunI - sun.intensity) * k; starMat.opacity += (T.stars - starMat.opacity) * k;
+  sun.intensity += (T.sunI * SUN_K - sun.intensity) * k; starMat.opacity += (T.stars - starMat.opacity) * k;
 }
 
 function resetGame() {
@@ -1749,9 +1889,10 @@ function updateWorldVisuals(dt, t) {
   // Sterne, Himmel, Boden, Licht folgen der Kamera
   stars.position.copy(camera.position);
   skyBodies.forEach(b => { if (b.visible) { b.position.copy(camera.position).addScaledVector(b.userData.dir, 520); b.rotation.y += dt * 0.02; } });
-  ground.position.x = pos.x; ground.position.z = pos.z;
+  // Gitter einrasten lassen, damit die Hügel nicht "schwimmen"
+  ground.position.x = Math.round(pos.x / GROUND_STEP) * GROUND_STEP; ground.position.z = Math.round(pos.z / GROUND_STEP) * GROUND_STEP;
   const tile = GROUND_SIZE / GROUND_REP;
-  groundTex.offset.set(pos.x / tile, -pos.z / tile);
+  groundTex.offset.set(ground.position.x / tile, -ground.position.z / tile);
   sun.position.set(pos.x + SUN_OFF.x, SUN_OFF.y, pos.z + SUN_OFF.z); sun.target.position.set(pos.x, 0, pos.z);
   rim.position.set(pos.x + 20, 25, pos.z - 40); rim.target.position.set(pos.x, 1, pos.z);
   skyDome.position.copy(camera.position);
@@ -1790,7 +1931,7 @@ function renderPlanets() {
   $('wallet').textContent = wallet + ' Coins';
   $('planets').innerHTML = THEMES.map((T, i) => {
     const open = unlocked.includes(i), sel = i === runTheme;
-    const rail = '#' + new THREE.Color(T.rail).getHexString(), gr = '#' + new THREE.Color(T.ground).getHexString();
+    const rail = cssHex(T.rail), gr = cssHex(T.ground);
     const status = sel ? 'Ausgewählt' : open ? 'Bereit' : (wallet >= T.price ? 'Freischalten · ' : 'Gesperrt · ') + T.price;
     return `<button type="button" role="listitem" class="pl${sel ? ' sel' : ''}${open ? '' : ' locked'}${!open && wallet < T.price ? ' poor' : ''}" data-i="${i}" aria-pressed="${sel}">
       <span class="orb" style="background:radial-gradient(circle at 35% 35%, ${rail}, ${gr} 70%)"></span>
@@ -1866,11 +2007,24 @@ syncSoundBtn();
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
 function fitCamera() {
   renderer.setSize(window.innerWidth, window.innerHeight);
+  if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(window.innerWidth, window.innerHeight); }
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', fitCamera);
+applyQuality();
 fitCamera();
+// Grafik-Knopf im Pausemenü: Auto → Hoch → Mittel → Niedrig
+const GFX_ORDER = ['auto', 'high', 'medium', 'low'];
+function syncGfxBtn() { $('gfxBtn').textContent = 'Grafik: ' + (qualitySetting === 'auto' ? 'Auto (' + QUALITY[quality].label + ')' : QUALITY[quality].label); }
+$('gfxBtn').addEventListener('click', () => {
+  qualitySetting = GFX_ORDER[(GFX_ORDER.indexOf(qualitySetting) + 1) % GFX_ORDER.length];
+  store.set('astroRunQuality', qualitySetting);
+  quality = qualitySetting === 'auto' ? (coarse ? 'medium' : 'high') : qualitySetting;
+  store.set('astroRunAutoQ', quality);
+  applyQuality(); syncGfxBtn();
+});
+syncGfxBtn();
 
 // Schnittstelle für die Android-App (Zurück-Taste, App im Hintergrund)
 window.__astroPause = pauseGame;
@@ -1896,7 +2050,26 @@ function frame(now) {
     lerpEnv(dt);
     updateWorldVisuals(dt, t);
   }
-  renderer.render(scene, camera);
+  if (composer) { finalPass.uniforms.time.value = t % 100; composer.render(dt); }
+  else renderer.render(scene, camera);
+  watchFps(raw);
+}
+
+// Automatische Qualität: wird es dauerhaft ruckelig, eine Stufe herunterschalten
+let fpsAcc = 0, fpsN = 0, fpsWarm = 0;
+function watchFps(raw) {
+  if (qualitySetting !== 'auto' || state !== 'run' || quality === 'low') { fpsAcc = fpsN = fpsWarm = 0; return; }
+  if ((fpsWarm += raw) < 2) return;            // Anlaufphase nicht mitzählen
+  fpsAcc += raw; fpsN++;
+  if (fpsAcc < 3) return;
+  const fps = fpsN / fpsAcc;
+  fpsAcc = fpsN = 0;
+  if (fps < 40) {
+    quality = quality === 'high' ? 'medium' : 'low';
+    store.set('astroRunAutoQ', quality);
+    applyQuality(); syncGfxBtn();
+    toast('Grafik: ' + QUALITY[quality].label, '#94a3c4');
+  }
 }
 
 toMenu();

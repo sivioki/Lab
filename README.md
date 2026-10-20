@@ -22,6 +22,8 @@ Planeten frei.
 | Rutschen | ↓ oder S | nach unten wischen |
 | Pause | P oder Esc | Pause-Knopf oder Zurück-Taste |
 
+Im Pausemenü lässt sich die Grafikqualität wählen (Auto, Hoch, Mittel, Niedrig). Auf „Auto“ schaltet das Spiel selbst eine Stufe herunter, wenn es ruckelt.
+
 ### Regeln
 
 - **Aliens** sind dir auf den Fersen. Wenn du über einen Felsen stolperst oder seitlich gegen
@@ -46,5 +48,5 @@ Planeten frei.
 Das Tempo steigt ohne Obergrenze immer weiter (Anzeige oben in km/h). Spätere Planeten starten schwieriger. Coins, freigeschaltete Planeten und Rekorde
 (pro Planet) werden auf dem Gerät gespeichert.
 
-Drittanbieter: Three.js r128 (MIT), Schriften Chakra Petch und Barlow (SIL OFL) in
+Drittanbieter: Three.js r128 mit Nachbearbeitungs-Modulen (MIT), Schriften Chakra Petch und Barlow (SIL OFL) in
 `astro-run/vendor/`.
