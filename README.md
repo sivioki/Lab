@@ -43,7 +43,7 @@ Planeten frei.
 | Vulkanus | 800 Coins | hoch | Lava und Basaltsäulen |
 | Xenon | 1500 Coins | mittel | Leuchtender Pilzdschungel, Ringplanet |
 
-Spätere Planeten starten schwieriger. Coins, freigeschaltete Planeten und Rekorde
+Das Tempo steigt ohne Obergrenze immer weiter (Anzeige oben in km/h). Spätere Planeten starten schwieriger. Coins, freigeschaltete Planeten und Rekorde
 (pro Planet) werden auf dem Gerät gespeichert.
 
 Drittanbieter: Three.js r128 (MIT), Schriften Chakra Petch und Barlow (SIL OFL) in
