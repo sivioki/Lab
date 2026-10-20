@@ -1172,8 +1172,9 @@ function addDecor(seg, T, M, s, side, x) {
 // Das spart hunderte Draw-Calls und macht das Spiel vor allem auf Handys flüssiger.
 function mergeStatic(seg) {
   const byMat = new Map();
+  const pickups = new Set(seg.pickups.map(p => p.mesh)); // Pickups müssen einzeln ausblendbar bleiben
   for (const c of seg.group.children.slice()) {
-    if (!c.isMesh) continue;
+    if (!c.isMesh || pickups.has(c)) continue;
     const g = bakedGeo(c);
     if (c.userData.uv && g.attributes.uv) {
       const uv = g.attributes.uv;
@@ -1464,7 +1465,7 @@ function checkPickups() {
     if (Math.abs(P.x - laneX(p.lane)) > 1.1) continue;
     const top = P.y + (P.slide > 0 ? SLIDE_H : PLAYER_H);
     if (p.y < P.y - 0.4 || p.y > top + 0.5) continue;
-    p.taken = true; pickFx.push({ mesh: p.mesh, t: 0 });
+    p.taken = true; pickFx.push({ mesh: p.mesh, t: 0, y0: p.mesh.position.y });
     if (p.type === 'coin') { coins++; sfx('coin'); }
     else if (p.type === 'tank') { oxygen = Math.min(100, oxygen + 38); sfx('o2'); toast('+O₂', '#6fb6ff'); }
     else { P.shield = true; sfx('shield'); toast('Schild aktiv', '#7dff9a'); }
@@ -1774,13 +1775,12 @@ function updateWorldVisuals(dt, t) {
   // eingesammelte Pickups fliegen hoch und verschwinden
   for (let i = pickFx.length - 1; i >= 0; i--) {
     const f = pickFx[i]; f.t += dt;
-    const k = f.t / 0.28;
+    const k = f.t / 0.16;
     if (k >= 1) { f.mesh.visible = false; pickFx.splice(i, 1); continue; }
-    // zum Helm hinziehen, kurz aufploppen und dabei schrumpfen
-    f.mesh.position.lerp(astro.root.position, 0.45);
-    f.mesh.position.y += 1.8 + k * 0.8;
-    f.mesh.scale.setScalar(Math.max(0.05, (1 + Math.sin(k * Math.PI) * 0.5) * (1 - k)));
-    f.mesh.rotation.y += dt * 20;
+    // kurz nach oben schnellen und dabei auf null schrumpfen
+    f.mesh.position.y = f.y0 + k * 0.9;
+    f.mesh.scale.setScalar(1 - k);
+    f.mesh.rotation.y += dt * 25;
   }
 }
 
