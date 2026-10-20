@@ -167,6 +167,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     fun resume() {
+        sounds.startMusic()
         if (running) return
         running = true
         thread = Thread(this, "game-loop").also { it.start() }
@@ -175,6 +176,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     fun release() = sounds.release()
 
     fun pause() {
+        sounds.pauseMusic()
         running = false
         val t = thread ?: return
         if (t !== Thread.currentThread()) {
