@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Astronautenhelm mit goldenem Visier vor einem kleinen Planeten -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Planet mit Ring -->
+    <path android:fillColor="#4FD8FF" android:pathData="M78,30m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+    <path android:fillColor="#00000000" android:strokeColor="#8DFF4F" android:strokeWidth="1.6"
+        android:pathData="M68,32 C72,27 86,26 88,29 C90,32 80,36 70,35" />
+    <!-- Antenne -->
+    <path android:fillColor="#00000000" android:strokeColor="#B8C0D0" android:strokeWidth="2" android:pathData="M64,40 L68,30" />
+    <path android:fillColor="#FF5A4F" android:pathData="M68,30m-2.2,0a2.2,2.2 0,1 1,4.4 0a2.2,2.2 0,1 1,-4.4 0" />
+    <!-- Helm -->
+    <path android:fillColor="#F1F2F4" android:pathData="M54,56m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0" />
+    <!-- Halsring -->
+    <path android:fillColor="#7D8494" android:pathData="M38,72 L70,72 L68,78 L40,78 Z" />
+    <!-- Visier -->
+    <path android:fillColor="#FFB030" android:pathData="M54,57m-14,0a14,10 0,1 1,28 0a14,10 0,1 1,-28 0" />
+    <path android:fillColor="#FFE3A3" android:pathData="M45,53 C47,50 51,49 54,49 L53,52 C50,52 48,53 47,55 Z" />
+    <!-- Orangefarbener Streifen -->
+    <path android:fillColor="#FF7A1A" android:pathData="M36,64 C44,69 64,69 72,64 L71,67 C63,72 45,72 37,67 Z" />
+</vector>

@@ -19,6 +19,8 @@
   --warn: #ffb347;
   --danger: #ff5a4f;
   --shield: #7dff9a;
+  --coin: #ffd23f;
+  --alien: #8dff4f;
   --display: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
   --body: 'Barlow', 'Segoe UI', system-ui, sans-serif;
   color-scheme: dark;
@@ -76,25 +78,27 @@ canvas { display: block; }
 #banner .d { font-size: 15px; color: var(--muted); margin-top: 2px; }
 @keyframes banner { 0% { opacity: 0; transform: translateY(14px); } 12% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; } }
 
+#alienWarn {
+  position: absolute; inset: 0; opacity: 0; transition: opacity .25s;
+  box-shadow: inset 0 0 90px 30px rgba(141, 255, 79, .38);
+}
+#alienWarn.on { opacity: 1; }
+.badge.alien { color: var(--alien); }
 #toast { position: absolute; left: 50%; top: 52%; transform: translateX(-50%); font-family: var(--display); font-weight: 700; font-size: 18px; opacity: 0; white-space: nowrap; }
 #toast.show { animation: toast 1s ease-out forwards; }
 @keyframes toast { 0% { opacity: 0; transform: translate(-50%, 6px); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -26px); } }
 
 .screen {
-  position: fixed; inset: 0; display: grid; place-items: center; overflow-y: auto;
+  position: fixed; inset: 0; display: flex; overflow-y: auto;
   padding: calc(16px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   background: radial-gradient(ellipse at 50% 40%, rgba(5,6,12,.35), rgba(5,6,12,.86));
 }
 .screen[hidden] { display: none !important; }
-.card { width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 26px 24px 22px; backdrop-filter: blur(6px); display: grid; gap: 18px; }
+.card { margin: auto; width: min(600px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 26px 24px 22px; backdrop-filter: blur(6px); display: grid; gap: 18px; }
 .eyebrow { font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: var(--accent); }
 h1 { font-family: var(--display); font-weight: 700; font-size: clamp(44px, 11vw, 76px); line-height: .95; letter-spacing: .04em; text-wrap: balance; }
 h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 40px); letter-spacing: .04em; text-wrap: balance; }
 .lede { color: var(--muted); font-size: 16px; line-height: 1.5; max-width: 60ch; }
-.route { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-family: var(--display); font-size: 13px; letter-spacing: .06em; }
-.route span.p { display: inline-flex; align-items: center; gap: 6px; }
-.route i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.route .arrow { color: var(--muted); }
 .controls { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; align-items: center; }
 .controls dt { font-family: var(--display); font-size: 12px; color: var(--fg); white-space: nowrap; }
 .controls dt kbd { display: inline-block; min-width: 22px; text-align: center; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; background: rgba(255,255,255,.05); font-family: inherit; }
@@ -113,6 +117,22 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
 .stats .readout .v { font-size: 24px; }
 .stats .readout.best .v { color: var(--warn); }
 .reason { color: var(--danger); font-size: 15px; }
+.wallet { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--coin); font-variant-numeric: tabular-nums; }
+.planets { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.pl {
+  position: relative; display: grid; gap: 4px; align-content: start; text-align: left; padding: 10px 10px 9px; border-radius: 8px;
+  border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--fg); font: inherit; cursor: pointer;
+}
+.pl .orb { width: 26px; height: 26px; border-radius: 50%; box-shadow: inset -6px -5px 0 rgba(0,0,0,.35); }
+.pl .nm { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .04em; }
+.pl .gv { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pl .st { font-family: var(--display); font-size: 12px; letter-spacing: .06em; color: var(--muted); }
+.pl.sel { border-color: var(--accent); background: rgba(79,216,255,.1); }
+.pl.sel .st { color: var(--accent); }
+.pl.locked .orb { filter: grayscale(.85) brightness(.6); }
+.pl.locked .st { color: var(--coin); }
+.pl.locked.poor .st { color: var(--muted); }
+.menu-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .new-best { color: var(--warn); font-family: var(--display); letter-spacing: .1em; font-size: 13px; }
 @media (max-width: 520px) {
   .o2 { width: 120px; }
@@ -130,16 +150,17 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
   <div class="hud-top">
     <div class="cluster">
       <div class="readout"><div class="l">Distanz</div><div class="v" id="hDist">0<small>m</small></div></div>
-      <div class="readout"><div class="l">Kristalle</div><div class="v" id="hCrys">0</div></div>
+      <div class="readout"><div class="l">Coins</div><div class="v" id="hCrys" style="color:var(--coin)">0</div></div>
       <div class="readout hide-sm"><div class="l">Punkte</div><div class="v" id="hScore">0</div></div>
       <div class="readout o2" id="hO2Box"><div class="l">Sauerstoff · O₂</div><div class="bar"><div class="fill" id="hO2"></div></div></div>
     </div>
     <div class="readout planet-tag">
-      <div class="l" id="hPlanetNo">Planet 1</div>
+      <div class="l">Planet</div>
       <div class="v" id="hPlanet">Mond</div>
-      <div class="badges"><span class="badge shield" id="hShield" hidden>SCHILD</span></div>
+      <div class="badges"><span class="badge alien" id="hAlien" hidden>ALIENS!</span><span class="badge shield" id="hShield" hidden>SCHILD</span></div>
     </div>
   </div>
+  <div id="alienWarn"></div>
   <div id="turnHint"></div>
   <div id="banner"><div class="k" id="bK"></div><div class="n" id="bN"></div><div class="d" id="bD"></div></div>
   <div id="toast"></div>
@@ -148,25 +169,28 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
 
 <div class="screen" id="menu">
   <div class="card">
-    <div class="eyebrow">Mission Log · Sol 1</div>
+    <div class="menu-head">
+      <div class="eyebrow">Mission Log · Flucht</div>
+      <div class="wallet" id="wallet">0 Coins</div>
+    </div>
     <h1>ASTRO<br>RUN</h1>
-    <p class="lede">Deine Rakete ist weg, dein Sauerstoff wird knapp. Renne über die Stege fremder Welten, spring über Krater, rutsch unter Laserschranken durch und verpass keine Kurve.</p>
-    <div class="route" id="route"></div>
+    <p class="lede">Aliens haben deine Rakete gekapert und sind dir dicht auf den Fersen. Renne über die Stege, spring über Krater, rutsch unter Laserschranken durch und verpass keine Kurve. Mit gesammelten Coins schaltest du neue Planeten frei.</p>
+    <div class="planets" id="planets" role="list"></div>
+    <div class="row">
+      <button class="btn" id="startBtn" type="button">Auf dem Mond starten</button>
+      <span class="hint" id="menuBest"></span>
+    </div>
     <dl class="controls">
-      <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd></dt><dd>Spur wechseln · an Kreuzungen abbiegen</dd>
+      <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd></dt><dd>Spur wechseln · an Ecken abbiegen</dd>
       <dt><kbd>↑</kbd> / <kbd>W</kbd> / <kbd>Leertaste</kbd></dt><dd>Springen</dd>
       <dt><kbd>↓</kbd> / <kbd>S</kbd></dt><dd>Rutschen</dd>
-      <dt>Handy</dt><dd>Wischen in die jeweilige Richtung</dd>
-      <dt><kbd>P</kbd> / <kbd>Esc</kbd></dt><dd>Pause</dd>
+      <dt>Touch</dt><dd>In die jeweilige Richtung wischen</dd>
     </dl>
     <div class="legend">
-      <span><b style="color:#5ff7ff">◆ Kristall</b> +10 Punkte</span>
-      <span><b style="color:#6fb6ff">▮ O₂-Tank</b> Sauerstoff auffüllen</span>
-      <span><b style="color:#7dff9a">⬢ Schild</b> übersteht einen Aufprall</span>
-    </div>
-    <div class="row">
-      <button class="btn" id="startBtn" type="button">Mission starten</button>
-      <span class="hint" id="menuBest"></span>
+      <span><b style="color:#ffd23f">● Coin</b> zum Freischalten von Planeten</span>
+      <span><b style="color:#6fb6ff">▮ O₂-Tank</b> füllt Sauerstoff auf</span>
+      <span><b style="color:#7dff9a">⬢ Schild</b> fängt einen Treffer ab</span>
+      <span><b style="color:#8dff4f">Stolpern</b> über Felsen lässt die Aliens aufholen</span>
     </div>
   </div>
 </div>
@@ -190,7 +214,7 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
     <p class="reason" id="overReason"></p>
     <div class="stats">
       <div class="readout"><div class="l">Distanz</div><div class="v" id="oDist">0 m</div></div>
-      <div class="readout"><div class="l">Kristalle</div><div class="v" id="oCrys">0</div></div>
+      <div class="readout"><div class="l">Coins gesammelt</div><div class="v" id="oCrys" style="color:var(--coin)">0</div></div>
       <div class="readout"><div class="l">Punkte</div><div class="v" id="oScore">0</div></div>
       <div class="readout best"><div class="l">Rekord</div><div class="v" id="oBest">0</div></div>
     </div>
@@ -214,33 +238,34 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
 const LANE = 2.2;            // Abstand der drei Spuren
 const PATH_W = 8;            // Breite des Stegs
 const TURN_WIN = 12;         // Abbiege-Fenster vor der Ecke
-const PLANET_LEN = 900;      // Meter pro Planet
 const GROUND_Y = -26;        // Planetenoberfläche unter den Stegen
 const BASE_SPEED = 13, MAX_SPEED = 34;
 const PLAYER_H = 1.8, SLIDE_H = 0.75;
+const ALIEN_FAR = 16;        // ab diesem Abstand sind die Aliens abgehängt
+const ALIEN_NEAR = 6;        // näher als das: nächstes Stolpern ist das Ende
 
 const THEMES = [
-  { name: 'Mond', desc: 'Geringe Schwerkraft – Sprünge tragen weit', sky: 0x03040a, fog: 0x0b0d17, fogNear: 45, fogFar: 200,
+  { name: 'Mond', price: 0, diff0: 0, desc: 'Geringe Schwerkraft – Sprünge tragen weit', sky: 0x03040a, fog: 0x0b0d17, fogNear: 45, fogFar: 200,
     ground: 0x4c4c55, groundEm: 0x000000, path: 0x8d909b, rail: 0x4fd8ff, obst: 0xb9bcc6, obstEm: 0x000000,
     decor: 'mesa', decorCol: 0x6d6e77, decorEm: 0x000000, grav: 0.55, stars: 1,
     hemiSky: 0xc4ccdf, hemiGround: 0x25252b, sun: 0xffffff, sunI: 1.1,
     body: { kind: 'earth', color: 0x2f6fd6, size: 26, dir: [-0.5, 0.32, -1] } },
-  { name: 'Mars', desc: 'Roter Staub und Felsnadeln', sky: 0xb06a42, fog: 0xbd7748, fogNear: 30, fogFar: 160,
+  { name: 'Mars', price: 150, diff0: 0.1, desc: 'Roter Staub und Felsnadeln', sky: 0xb06a42, fog: 0xbd7748, fogNear: 30, fogFar: 160,
     ground: 0x8d3d1f, groundEm: 0x000000, path: 0x7d6457, rail: 0xffb347, obst: 0xa8462a, obstEm: 0x000000,
     decor: 'spire', decorCol: 0x9a4626, decorEm: 0x000000, grav: 0.8, stars: 0.15,
     hemiSky: 0xffcfa6, hemiGround: 0x5a2010, sun: 0xfff0dc, sunI: 1.0,
     body: { kind: 'sun', color: 0xfff4dd, size: 9, dir: [0.6, 0.45, -1] } },
-  { name: 'Europa', desc: 'Eismond des Jupiter – rutschig und kalt', sky: 0x081530, fog: 0x18305a, fogNear: 38, fogFar: 180,
+  { name: 'Europa', price: 400, diff0: 0.2, desc: 'Eismond des Jupiter – rutschig und kalt', sky: 0x081530, fog: 0x18305a, fogNear: 38, fogFar: 180,
     ground: 0xcfe6ff, groundEm: 0x0b1a33, path: 0x8ea7c7, rail: 0x7fffd4, obst: 0xbfe9ff, obstEm: 0x0d2a4a,
     decor: 'crystal', decorCol: 0xa8dcff, decorEm: 0x123a66, grav: 0.65, stars: 0.8,
     hemiSky: 0xd6ecff, hemiGround: 0x34507a, sun: 0xeef6ff, sunI: 1.0,
     body: { kind: 'jupiter', color: 0xd9a066, size: 70, dir: [0.4, 0.28, -1] } },
-  { name: 'Vulkanus', desc: 'Lavaströme und Basaltsäulen – hohe Schwerkraft', sky: 0x1a0503, fog: 0x3d0e06, fogNear: 25, fogFar: 140,
+  { name: 'Vulkanus', price: 800, diff0: 0.3, desc: 'Lavaströme und Basaltsäulen – hohe Schwerkraft', sky: 0x1a0503, fog: 0x3d0e06, fogNear: 25, fogFar: 140,
     ground: 0x5a1600, groundEm: 0xff4200, path: 0x3b3431, rail: 0xff5a1f, obst: 0x2c2523, obstEm: 0x3a0800,
     decor: 'basalt', decorCol: 0x272020, decorEm: 0x200400, grav: 1.0, stars: 0.3,
     hemiSky: 0xff9a66, hemiGround: 0x501205, sun: 0xffb08a, sunI: 0.9,
     body: { kind: 'sun', color: 0xff4a1a, size: 38, dir: [-0.3, 0.22, -1] } },
-  { name: 'Xenon', desc: 'Leuchtender Pilzdschungel einer fremden Welt', sky: 0x16072d, fog: 0x2c1050, fogNear: 30, fogFar: 160,
+  { name: 'Xenon', price: 1500, diff0: 0.4, desc: 'Leuchtender Pilzdschungel einer fremden Welt', sky: 0x16072d, fog: 0x2c1050, fogNear: 30, fogFar: 160,
     ground: 0x2d1a4f, groundEm: 0x0a0418, path: 0x4b3c6b, rail: 0x7dff6a, obst: 0x6a2fa0, obstEm: 0x1c0038,
     decor: 'mushroom', decorCol: 0x3a2a55, decorEm: 0x000000, grav: 0.75, stars: 0.6,
     hemiSky: 0xd0a8ff, hemiGround: 0x2a1048, sun: 0xe8d8ff, sunI: 0.9,
@@ -273,7 +298,9 @@ function sfx(type) {
       g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.start(t); o.stop(t + dur + 0.02);
     };
     switch (type) {
-      case 'crystal': set('triangle', 1200 + Math.random() * 300, 2200, 0.12, 0.08); break;
+      case 'coin': set('triangle', 1300 + Math.random() * 200, 2400, 0.1, 0.07); break;
+      case 'stumble': set('square', 180, 70, 0.3, 0.1); break;
+      case 'alien': set('sawtooth', 90 + Math.random() * 40, 260, 0.35, 0.06); break;
       case 'jump': set('sine', 300, 620, 0.18, 0.09); break;
       case 'slide': set('sawtooth', 220, 90, 0.2, 0.04); break;
       case 'turn': set('square', 500, 760, 0.08, 0.04); break;
@@ -394,7 +421,7 @@ const GEO = {
   octa: new THREE.OctahedronGeometry(1, 0),
   cap: new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
   pillar: new THREE.CylinderGeometry(0.5, 0.9, 1, 8),
-  crystal: new THREE.OctahedronGeometry(0.34, 0),
+  coin: new THREE.CylinderGeometry(0.4, 0.4, 0.09, 22).rotateX(Math.PI / 2),
   tank: new THREE.CylinderGeometry(0.26, 0.26, 0.8, 14),
   tankCap: new THREE.SphereGeometry(0.26, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2),
   shield: new THREE.IcosahedronGeometry(0.45, 0),
@@ -410,7 +437,7 @@ const GEO = {
   })(),
 };
 const PICKUP_MAT = {
-  crystal: new THREE.MeshStandardMaterial({ color: 0x5ff7ff, emissive: 0x1fa8c0, roughness: 0.2, metalness: 0.3 }),
+  coin: new THREE.MeshStandardMaterial({ color: 0xffd23f, emissive: 0x6a4a00, roughness: 0.25, metalness: 0.85 }),
   tank: new THREE.MeshStandardMaterial({ color: 0x6fb6ff, emissive: 0x1a4aa0, roughness: 0.35, metalness: 0.5 }),
   tankBand: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x666666 }),
   shield: new THREE.MeshStandardMaterial({ color: 0x7dff9a, emissive: 0x2aa04a, roughness: 0.3, wireframe: true }),
@@ -489,7 +516,7 @@ const astro = buildAstronaut();
 
 // ---------- Strecke ----------
 let segments = [];
-let startOffset = 0; // nur zum Testen späterer Planeten
+let runTheme = 0;     // gewählter Planet
 function dirLeft(d) { return { x: d.z, z: -d.x }; }
 function dirRight(d) { return { x: -d.z, z: d.x }; }
 function yawOf(d) { return Math.atan2(-d.x, -d.z); }
@@ -497,7 +524,6 @@ function segPoint(seg, s, x, y, out) {
   out = out || new THREE.Vector3();
   return out.set(seg.start.x + seg.dir.x * s + seg.right.x * x, y, seg.start.z + seg.dir.z * s + seg.right.z * x);
 }
-function themeIndexFor(dist) { return Math.floor(dist / PLANET_LEN) % THEMES.length; }
 
 function placeMesh(seg, geo, mat, s, x, y, sx, sy, sz, extraYaw) {
   const m = new THREE.Mesh(geo, mat);
@@ -511,23 +537,22 @@ function placeMesh(seg, geo, mat, s, x, y, sx, sy, sz, extraYaw) {
 function makeSegment(prev) {
   const first = !prev;
   let start, dir, startDist;
-  if (first) { start = new THREE.Vector3(0, 0, 0); dir = { x: 0, z: -1 }; startDist = startOffset; }
+  if (first) { start = new THREE.Vector3(0, 0, 0); dir = { x: 0, z: -1 }; startDist = 0; }
   else {
     start = segPoint(prev, prev.len, 0, 0);
     dir = prev.turn === 'L' ? dirLeft(prev.dir) : dirRight(prev.dir);
     startDist = prev.startDist + prev.len;
   }
-  const diff = Math.min(1, startDist / 5000);
+  const diff = Math.min(1, THEMES[runTheme].diff0 + startDist / 5000);
   const len = first ? 150 : Math.round(rand(80, 150) + diff * 20);
   // nie drei gleiche Kurven hintereinander, damit sich die Strecke nicht kreuzt
   let turn = Math.random() < 0.5 ? 'L' : 'R';
   if (prev && prev.prevTurn === prev.turn && turn === prev.turn) turn = turn === 'L' ? 'R' : 'L';
   if (prev && prev.turn === turn && Math.random() < 0.5) turn = turn === 'L' ? 'R' : 'L';
-  const planetNo = Math.floor(startDist / PLANET_LEN);
-  const ti = planetNo % THEMES.length;
+  const ti = runTheme;
   const seg = {
     start, dir, right: dirRight(dir), yaw: yawOf(dir), len, turn, startDist, first, diff,
-    theme: ti, planetNo, prevTurn: prev ? prev.turn : null,
+    theme: ti, prevTurn: prev ? prev.turn : null,
     group: new THREE.Group(), obstacles: [], pickups: [],
   };
   generateContent(seg);
@@ -550,7 +575,7 @@ function generateContent(seg) {
       const lane = randi(-1, 1);
       for (let i = 0; i < 3; i++) { // Kristallbogen über dem Krater
         const f = (i + 1) / 4;
-        seg.pickups.push({ type: 'crystal', s: s - 2 + f * (gl + 4), lane, y: 1.2 + Math.sin(f * Math.PI) * 1.4 });
+        seg.pickups.push({ type: 'coin', s: s - 2 + f * (gl + 4), lane, y: 1.2 + Math.sin(f * Math.PI) * 1.4 });
       }
       used = gl;
     } else if (r < 0.32) {
@@ -561,7 +586,7 @@ function generateContent(seg) {
       seg.obstacles.push({ type: 'low', s, depth: 0.9, h: 1.0, lanes: lanes.slice(0, n) });
       if (Math.random() < 0.4) { // Kristalle im Sprung über den Felsen
         const lane = lanes[0];
-        for (let i = 0; i < 3; i++) seg.pickups.push({ type: 'crystal', s: s - 2.5 + i * 2.5, lane, y: i === 1 ? 2.4 : 1.7 });
+        for (let i = 0; i < 3; i++) seg.pickups.push({ type: 'coin', s: s - 2.5 + i * 2.5, lane, y: i === 1 ? 2.4 : 1.7 });
       }
     } else {
       const lanes = [-1, 0, 1].sort(() => Math.random() - 0.5);
@@ -574,7 +599,7 @@ function generateContent(seg) {
     free.push([a, b]);
     if (Math.random() < 0.7) {
       const lane = randi(-1, 1);
-      for (let p = a; p < b; p += 2.4) seg.pickups.push({ type: 'crystal', s: p, lane, y: 0.9 });
+      for (let p = a; p < b; p += 2.4) seg.pickups.push({ type: 'coin', s: p, lane, y: 0.9 });
     }
     s += used + gapAfter;
   }
@@ -656,7 +681,7 @@ function buildSegment(seg) {
   // Pickups
   for (const p of seg.pickups) {
     let m;
-    if (p.type === 'crystal') m = placeMesh(seg, GEO.crystal, PICKUP_MAT.crystal, p.s, laneX(p.lane), p.y, 1, 1.4, 1);
+    if (p.type === 'coin') m = placeMesh(seg, GEO.coin, PICKUP_MAT.coin, p.s, laneX(p.lane), p.y, 1, 1, 1);
     else if (p.type === 'tank') {
       m = new THREE.Group();
       const c = new THREE.Mesh(GEO.tank, PICKUP_MAT.tank); m.add(c);
@@ -664,7 +689,7 @@ function buildSegment(seg) {
       const band = new THREE.Mesh(GEO.tank, PICKUP_MAT.tankBand); band.scale.set(1.05, 0.15, 1.05); m.add(band);
       segPoint(seg, p.s, laneX(p.lane), p.y, m.position); g.add(m);
     } else m = placeMesh(seg, GEO.shield, PICKUP_MAT.shield, p.s, laneX(p.lane), p.y, 1, 1, 1);
-    m.userData.spin = p.type === 'tank' ? 1.5 : 2.5;
+    m.userData.spin = p.type === 'tank' ? 1.5 : p.type === 'coin' ? 3.5 : 2.5;
     m.userData.baseY = p.y;
     p.mesh = m;
   }
@@ -727,19 +752,84 @@ function disposeSegment(seg) {
   scene.remove(seg.group);
 }
 
+// ---------- Aliens ----------
+function buildAlien(scale, skinHex) {
+  const root = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color: skinHex, emissive: new THREE.Color(skinHex).multiplyScalar(0.18), roughness: 0.55 });
+  const suit = new THREE.MeshStandardMaterial({ color: 0x2a1840, roughness: 0.5, metalness: 0.4 });
+  const eye = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.05, metalness: 0.6 });
+  const glow = new THREE.MeshBasicMaterial({ color: 0xff3df0 });
+  const sph = new THREE.SphereGeometry(1, 18, 12);
+  const add = (parent, geo, mat, sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); parent.add(m); return m; };
+  const body = new THREE.Group(); root.add(body);
+  add(body, GEO.box, suit, 0.5, 0.7, 0.32, 0, 1.3, 0);
+  add(body, GEO.box, glow, 0.12, 0.12, 0.04, 0, 1.4, -0.17);
+  add(body, GEO.cyl, skin, 0.08, 0.2, 0.08, 0, 1.72, 0);
+  const head = new THREE.Group(); head.position.set(0, 2.05, 0); body.add(head);
+  add(head, sph, skin, 0.4, 0.46, 0.4, 0, 0, 0);
+  add(head, sph, eye, 0.13, 0.08, 0.06, -0.15, 0.02, -0.33).rotation.z = 0.45;
+  add(head, sph, eye, 0.13, 0.08, 0.06, 0.15, 0.02, -0.33).rotation.z = -0.45;
+  add(head, GEO.cyl, skin, 0.015, 0.3, 0.015, -0.14, 0.52, 0).rotation.z = 0.3;
+  add(head, GEO.cyl, skin, 0.015, 0.3, 0.015, 0.14, 0.52, 0).rotation.z = -0.3;
+  add(head, sph, glow, 0.05, 0.05, 0.05, -0.19, 0.66, 0);
+  add(head, sph, glow, 0.05, 0.05, 0.05, 0.19, 0.66, 0);
+  const limb = (x, y, len, w, mat) => {
+    const pivot = new THREE.Group(); pivot.position.set(x, y, 0); body.add(pivot);
+    add(pivot, GEO.box, mat, w, len, w, 0, -len / 2, 0);
+    add(pivot, sph, skin, w * 0.8, w * 0.6, w * 1.2, 0, -len, -0.04);
+    return pivot;
+  };
+  const legL = limb(-0.14, 0.96, 0.9, 0.14, suit), legR = limb(0.14, 0.96, 0.9, 0.14, suit);
+  const armL = limb(-0.33, 1.6, 0.85, 0.1, skin), armR = limb(0.33, 1.6, 0.85, 0.1, skin);
+  root.scale.setScalar(scale);
+  root.visible = false;
+  scene.add(root);
+  return { root, body, head, legL, legR, armL, armR, phase: Math.random() * 6 };
+}
+const aliens = [buildAlien(0.8, 0x8dff4f), buildAlien(0.75, 0x5fe0a0), buildAlien(0.85, 0xa6ff3f)];
+const ALIEN_SIDE = [0, -1.7, 1.7], ALIEN_LAG = [1.8, 0, 0.7]; // der mittlere läuft hinten, damit der Astronaut sichtbar bleibt
+
+// Spur des Spielers, damit die Aliens denselben Weg laufen (auch um Kurven)
+let trail = [];
+function recordTrail(pos) {
+  trail.push({ d: distance, x: pos.x, y: Math.max(0, pos.y), z: pos.z });
+  while (trail.length > 2 && trail[1].d < distance - 45) trail.shift();
+}
+function trailAt(d, out) {
+  if (d <= trail[0].d) { const a = trail[0]; return out.set(a.x, a.y, a.z); }
+  for (let i = trail.length - 1; i > 0; i--) {
+    const a = trail[i - 1], b = trail[i];
+    if (a.d <= d) {
+      const f = b.d > a.d ? (d - a.d) / (b.d - a.d) : 0;
+      return out.set(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, a.z + (b.z - a.z) * f);
+    }
+  }
+  const z = trail[trail.length - 1]; return out.set(z.x, z.y, z.z);
+}
+
+// ---------- Fortschritt: Coins & Planeten ----------
+const PREP = ['auf dem Mond', 'auf dem Mars', 'auf Europa', 'auf Vulkanus', 'auf Xenon'];
+let wallet = parseInt(store.get('astroRunCoins') || '0', 10) || 0;
+let unlocked = (() => { try { const u = JSON.parse(store.get('astroRunUnlocked') || '[0]'); return Array.isArray(u) ? u : [0]; } catch (e) { return [0]; } })();
+if (!unlocked.includes(0)) unlocked.push(0);
+runTheme = parseInt(store.get('astroRunPlanet') || '0', 10) || 0;
+if (!unlocked.includes(runTheme) || !THEMES[runTheme]) runTheme = 0;
+const bestKey = i => 'astroRunBest_' + i;
+const bestOf = i => parseInt(store.get(bestKey(i)) || (i === 0 ? store.get('astroRunBest') : '0') || '0', 10) || 0;
+function saveProgress() {
+  store.set('astroRunCoins', String(wallet));
+  store.set('astroRunUnlocked', JSON.stringify(unlocked));
+  store.set('astroRunPlanet', String(runTheme));
+}
+
 // ---------- Spielzustand ----------
-const P = { seg: null, s: 0, lane: 0, x: 0, y: 0, vy: 0, slide: 0, shield: false, off: new THREE.Vector3(), yaw: 0, phase: 0 };
+const P = { seg: null, s: 0, lane: 0, x: 0, y: 0, vy: 0, slide: 0, shield: false, off: new THREE.Vector3(), yaw: 0, phase: 0, stumble: 0 };
 let state = 'menu';    // menu | run | paused | dying | over
-let speed = BASE_SPEED, distance = 0, crystals = 0, oxygen = 100, runTime = 0;
-let dying = null, curPlanetNo = 0, planetsVisited = 1;
-let best = parseInt(store.get('astroRunBest') || '0', 10) || 0;
+let speed = BASE_SPEED, distance = 0, coins = 0, oxygen = 100, runTime = 0;
+let dying = null, alienGap = 2.5, growlT = 0;
 let envTheme = 0;
 
-const env = {
-  sky: new THREE.Color(), fog: new THREE.Color(), ground: new THREE.Color(), groundEm: new THREE.Color(),
-  hemiSky: new THREE.Color(), hemiGround: new THREE.Color(), sun: new THREE.Color(),
-  fogNear: 40, fogFar: 200, stars: 1, sunI: 1,
-};
+const env = { tmp: new THREE.Color() };
 function applyEnvInstant(i) {
   const T = THEMES[i];
   scene.background.setHex(T.sky); scene.fog.color.setHex(T.fog);
@@ -752,7 +842,7 @@ function applyEnvInstant(i) {
 }
 function lerpEnv(dt) {
   const T = THEMES[envTheme], k = 1 - Math.exp(-1.6 * dt);
-  const lc = (c, hex) => { env.sky.setHex(hex); c.lerp(env.sky, k); };
+  const lc = (c, hex) => { env.tmp.setHex(hex); c.lerp(env.tmp, k); };
   lc(scene.background, T.sky); lc(scene.fog.color, T.fog);
   lc(groundMat.color, T.ground); lc(groundMat.emissive, T.groundEm);
   lc(hemi.color, T.hemiSky); lc(hemi.groundColor, T.hemiGround); lc(sun.color, T.sun);
@@ -765,18 +855,23 @@ function resetGame() {
   segments = [];
   let prev = null;
   for (let i = 0; i < 6; i++) { prev = makeSegment(prev); segments.push(prev); }
-  Object.assign(P, { seg: segments[0], s: 0, lane: 0, x: 0, y: 0, vy: 0, slide: 0, shield: false, yaw: segments[0].yaw, phase: 0 });
+  Object.assign(P, { seg: segments[0], s: 0, lane: 0, x: 0, y: 0, vy: 0, slide: 0, shield: false, yaw: segments[0].yaw, phase: 0, stumble: 0 });
   P.off.set(0, 0, 0);
-  speed = BASE_SPEED; distance = 0; crystals = 0; oxygen = 100; runTime = 0; dying = null;
-  curPlanetNo = segments[0].planetNo; planetsVisited = 1;
-  applyEnvInstant(segments[0].theme);
+  speed = BASE_SPEED; distance = 0; coins = 0; oxygen = 100; runTime = 0; dying = null;
+  alienGap = 2.5; growlT = 0;
+  trail = [];
+  for (let k = -44; k <= 0; k += 4) { distance = k; recordTrail(segPoint(segments[0], k, 0, 0, tmpV)); }
+  distance = 0;
+  applyEnvInstant(runTheme);
   astro.body.rotation.set(0, 0, 0); astro.root.position.set(0, 0, 0); astro.root.visible = true;
   astro.bubble.visible = false;
+  for (const a of aliens) { a.root.visible = false; a.body.rotation.set(0, 0, 0); }
   camYaw = P.yaw; camera.position.set(0, 4.5, 8); camInit = true;
   updateHUD(true);
 }
 
 // ---------- Eingabe ----------
+function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 function inTurnWindow() {
   return P.s >= P.seg.len - TURN_WIN && P.s <= P.seg.len + PATH_W / 2;
 }
@@ -799,7 +894,12 @@ function doTurn() {
 function steer(dir) { // dir: -1 links, +1 rechts
   if (state !== 'run') return;
   if (inTurnWindow() && ((dir < 0 && P.seg.turn === 'L') || (dir > 0 && P.seg.turn === 'R'))) { doTurn(); return; }
-  P.lane = clamp(P.lane + dir, -1, 1);
+  const target = clamp(P.lane + dir, -1, 1);
+  if (target === P.lane) return;
+  // Seitlich gegen einen Monolithen: abprallen und stolpern
+  const blocked = P.seg.obstacles.some(o => o.type === 'wall' && !o.done && o.lanes.includes(target) && Math.abs(P.s - o.s) < o.depth / 2 + 0.6);
+  if (blocked) { stumble('wall'); return; }
+  P.lane = target;
 }
 function jump() {
   if (state !== 'run') return;
@@ -845,6 +945,16 @@ function overGap() {
   for (const o of P.seg.obstacles) if (o.type === 'gap' && P.s > o.s0 + 0.35 && P.s < o.s1 - 0.35) return true;
   return false;
 }
+function stumble(what) {
+  if (P.shield) {
+    P.shield = false; sfx('block'); toast('Schild zerstört', '#7dff9a'); shake = 0.3; buzz(40); updateHUD(true);
+    return;
+  }
+  if (alienGap < ALIEN_NEAR) { die('caught', 'stumble'); return; }
+  P.stumble = 0.55; alienGap = 2.2; shake = 0.35;
+  sfx('stumble'); sfx('alien'); buzz(90);
+  toast(what === 'wall' ? 'Abgeprallt! Die Aliens holen auf' : 'Gestolpert! Die Aliens holen auf', '#8dff4f');
+}
 function checkObstacles() {
   const h = P.slide > 0 && P.y < 0.3 ? SLIDE_H : PLAYER_H;
   for (const o of P.seg.obstacles) {
@@ -856,12 +966,12 @@ function checkObstacles() {
       const overlap = o.lanes.some(l => Math.abs(P.x - laneX(l)) < 0.95 + 0.3);
       if (overlap) hit = o.type === 'wall' ? true : P.y < o.h - 0.05;
     }
-    if (hit) {
-      if (P.shield) {
-        P.shield = false; o.done = true; sfx('block'); toast('Schild zerstört', '#7dff9a');
-        shake = 0.4; updateHUD(true);
-      } else { die('crash', o.type); return; }
-    }
+    if (!hit) continue;
+    o.done = true;
+    if (o.type === 'low') { stumble('low'); if (state !== 'run') return; continue; }
+    if (P.shield) {
+      P.shield = false; sfx('block'); toast('Schild zerstört', '#7dff9a'); shake = 0.4; buzz(40); updateHUD(true);
+    } else { die('crash', o.type); return; }
   }
 }
 function checkPickups() {
@@ -872,7 +982,7 @@ function checkPickups() {
     const top = P.y + (P.slide > 0 ? SLIDE_H : PLAYER_H);
     if (p.y < P.y - 0.4 || p.y > top + 0.5) continue;
     p.taken = true; p.mesh.visible = false;
-    if (p.type === 'crystal') { crystals++; sfx('crystal'); }
+    if (p.type === 'coin') { coins++; sfx('coin'); }
     else if (p.type === 'tank') { oxygen = Math.min(100, oxygen + 38); sfx('o2'); toast('+O₂', '#6fb6ff'); }
     else { P.shield = true; sfx('shield'); toast('Schild aktiv', '#7dff9a'); }
     updateHUD(true);
@@ -881,39 +991,40 @@ function checkPickups() {
 
 const REASONS = {
   crash: { low: ['Gestolpert', 'Du bist über einen Felsbrocken gestürzt.'], wall: ['Frontalaufprall', 'Gegen einen Monolithen gerannt.'], high: ['Laserschranke', 'Unter der Schranke hättest du rutschen müssen.'] },
+  caught: { stumble: ['Geschnappt!', 'Zweimal kurz hintereinander gestolpert – die Aliens haben dich erwischt.'], oxygen: ['Geschnappt!', 'Ohne Sauerstoff wurdest du langsam und die Aliens haben dich eingeholt.'] },
   gap: ['Abgestürzt', 'Du bist in einen Krater gefallen.'],
   edge: ['Kurve verpasst', 'Du bist vom Steg in die Tiefe gestürzt.'],
-  oxygen: ['Sauerstoff leer', 'Sammle O₂-Tanks, um länger durchzuhalten.'],
 };
 function die(kind, sub) {
   if (state !== 'run') return;
   state = 'dying';
   dying = { kind, sub, t: 0, v: speed };
-  if (kind === 'crash' || kind === 'oxygen') { sfx('crash'); shake = kind === 'crash' ? 0.8 : 0; }
-  else sfx('fall');
+  if (kind === 'crash' || kind === 'caught') { sfx('crash'); shake = 0.8; buzz([60, 40, 160]); }
+  else { sfx('fall'); buzz(200); }
+  if (kind === 'caught') sfx('alien');
   $('turnHint').classList.remove('on');
+  $('alienWarn').classList.remove('on');
 }
 
 // ---------- HUD ----------
-function score() { return Math.floor(distance) + crystals * 10; }
+function score() { return Math.floor(distance) + coins * 10; }
 let hudCache = {};
 function setText(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).innerHTML = v; } }
 function updateHUD(force) {
   if (force) hudCache = {};
   setText('hDist', Math.floor(distance) + '<small>m</small>');
-  setText('hCrys', String(crystals));
+  setText('hCrys', String(coins));
   setText('hScore', String(score()));
   $('hO2').style.width = oxygen.toFixed(1) + '%';
   $('hO2Box').classList.toggle('low', oxygen < 25);
-  const T = THEMES[P.seg ? P.seg.theme : 0];
-  setText('hPlanet', T.name);
-  setText('hPlanetNo', 'Planet ' + (curPlanetNo + 1));
+  setText('hPlanet', THEMES[runTheme].name);
   $('hShield').hidden = !P.shield;
+  const near = state === 'run' && alienGap < ALIEN_NEAR;
+  $('hAlien').hidden = !near;
+  $('alienWarn').classList.toggle('on', near);
 }
-function showBanner(no, T) {
-  $('bK').textContent = 'Planet ' + (no + 1) + ' erreicht';
-  $('bN').textContent = T.name;
-  $('bD').textContent = T.desc;
+function showBanner(k, n, d) {
+  $('bK').textContent = k; $('bN').textContent = n; $('bD').textContent = d;
   const b = $('banner'); b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
 }
 function toast(text, color) {
@@ -923,13 +1034,16 @@ function toast(text, color) {
 
 // ---------- Ablauf ----------
 let camYaw = 0, camInit = true, shake = 0;
-const tmpV = new THREE.Vector3(), lookV = new THREE.Vector3();
+const tmpV = new THREE.Vector3(), lookV = new THREE.Vector3(), alienV = new THREE.Vector3(), alienV2 = new THREE.Vector3();
 
 function updateRun(dt) {
   runTime += dt;
   speed = Math.min(MAX_SPEED, BASE_SPEED + distance * 0.0045 + runTime * 0.05);
+  let v = speed;
+  if (P.stumble > 0) { P.stumble -= dt; v *= 0.6; }
+  if (oxygen <= 0) v *= 0.7;
   const T = THEMES[P.seg.theme];
-  P.s += speed * dt; distance += speed * dt;
+  P.s += v * dt; distance += v * dt;
 
   // seitliche Bewegung
   const tx = laneX(P.lane), dx = tx - P.x, step = 20 * dt;
@@ -952,22 +1066,20 @@ function updateRun(dt) {
   checkObstacles(); if (state !== 'run') return;
   checkPickups();
 
-  oxygen -= (1.25 + P.seg.diff * 0.6) * dt;
-  if (oxygen <= 0) { oxygen = 0; die('oxygen'); return; }
+  oxygen = Math.max(0, oxygen - (1.25 + P.seg.diff * 0.6) * dt);
+
+  // Aliens: fallen langsam zurück, holen ohne Sauerstoff aber auf
+  if (oxygen <= 0) {
+    alienGap -= 3.5 * dt;
+    if (alienGap <= 1.2) { die('caught', 'oxygen'); return; }
+  } else if (P.stumble <= 0) alienGap = Math.min(ALIEN_FAR, alienGap + 1.5 * dt);
+  growlT -= dt;
+  if (alienGap < ALIEN_NEAR && growlT <= 0) { sfx('alien'); growlT = 1.4; }
 
   // Strecke nachladen / aufräumen
   const idx = segments.indexOf(P.seg);
   while (segments.length - idx < 6) segments.push(makeSegment(segments[segments.length - 1]));
   while (segments.indexOf(P.seg) > 1) disposeSegment(segments.shift());
-
-  // Planetenwechsel
-  if (P.seg.planetNo !== curPlanetNo) {
-    curPlanetNo = P.seg.planetNo; planetsVisited++;
-    envTheme = P.seg.theme;
-    skyBodies.forEach((b, k) => b.visible = k === envTheme);
-    oxygen = Math.min(100, oxygen + 25);
-    showBanner(curPlanetNo, THEMES[envTheme]); sfx('planet');
-  }
 
   const showTurn = P.s >= P.seg.len - TURN_WIN - 18 && P.s <= P.seg.len + PATH_W / 2;
   const hint = $('turnHint');
@@ -984,13 +1096,15 @@ function updateDying(dt) {
     P.s += dying.v * dt;
     P.vy -= g * dt; P.y += P.vy * dt;
     astro.body.rotation.x += dt * 3;
+    alienGap = Math.max(alienGap, 4) ; // Aliens bleiben am Rand stehen
   } else {
     dying.v *= Math.exp(-6 * dt);
     P.s += dying.v * dt;
     if (P.y > 0) { P.vy -= g * dt; P.y = Math.max(0, P.y + P.vy * dt); }
-    astro.body.rotation.x += (1.45 - astro.body.rotation.x) * Math.min(1, dt * 6);
+    astro.body.rotation.x += ((dying.kind === 'caught' ? -1.4 : 1.45) - astro.body.rotation.x) * Math.min(1, dt * 6);
+    alienGap += (1.3 - alienGap) * Math.min(1, dt * 2.5);
   }
-  if (dying.t > 1.6) gameOver();
+  if (dying.t > (dying.kind === 'caught' ? 2.0 : 1.6)) gameOver();
 }
 
 function animateAstronaut(dt) {
@@ -1008,9 +1122,11 @@ function animateAstronaut(dt) {
       astro.legL.rotation.x = astro.legR.rotation.x = 1.3;
       astro.armL.rotation.x = astro.armR.rotation.x = -0.6;
     } else {
-      astro.body.rotation.x += (-0.12 - astro.body.rotation.x) * Math.min(1, dt * 14);
+      const lean = P.stumble > 0 ? -0.75 : -0.12;
+      astro.body.rotation.x += (lean - astro.body.rotation.x) * Math.min(1, dt * 14);
       astro.legL.rotation.x = sw * 0.95; astro.legR.rotation.x = -sw * 0.95;
       astro.armL.rotation.x = -sw * 0.8; astro.armR.rotation.x = sw * 0.8;
+      if (P.stumble > 0) { astro.armL.rotation.x = astro.armR.rotation.x = -1.6; }
     }
   } else if (state === 'menu') {
     P.phase += dt * 2;
@@ -1022,33 +1138,63 @@ function animateAstronaut(dt) {
   if (P.shield) astro.bubble.material.opacity = 0.14 + Math.sin(performance.now() / 160) * 0.05;
 }
 
+function updateAliens(dt, pos) {
+  const show = state === 'run' || state === 'dying' || state === 'paused' || state === 'over';
+  const grabbing = dying && dying.kind === 'caught';
+  aliens.forEach((a, i) => {
+    const gap = alienGap + ALIEN_LAG[i] * (grabbing ? 0.4 : 1);
+    a.root.visible = show && gap < ALIEN_FAR + 2;
+    if (!a.root.visible) return;
+    const d = distance - gap;
+    trailAt(d, alienV); trailAt(d + 0.6, alienV2);
+    const hx = alienV2.x - alienV.x, hz = alienV2.z - alienV.z;
+    const yaw = (hx || hz) ? Math.atan2(-hx, -hz) : P.yaw;
+    const rx = Math.cos(yaw), rz = -Math.sin(yaw);  // rechte Seite in Laufrichtung
+    a.root.position.set(alienV.x + rx * ALIEN_SIDE[i], alienV.y, alienV.z + rz * ALIEN_SIDE[i]);
+    a.root.rotation.y = yaw;
+    const moving = state === 'run' || (state === 'dying' && dying.t < 1.2);
+    if (moving) a.phase += dt * Math.max(speed, 10) * 0.6;
+    const sw = Math.sin(a.phase);
+    a.root.position.y += Math.abs(Math.cos(a.phase)) * 0.12;
+    a.legL.rotation.x = sw * 1.0; a.legR.rotation.x = -sw * 1.0;
+    // Arme gierig nach vorn gestreckt
+    a.armL.rotation.x = -1.35 + sw * 0.3; a.armR.rotation.x = -1.35 - sw * 0.3;
+    a.body.rotation.x = -0.2;
+    a.head.rotation.z = Math.sin(a.phase * 0.5) * 0.12;
+  });
+}
+
 function updateWorldVisuals(dt, t) {
   // Spielerposition + Glättung nach dem Abbiegen
   P.off.multiplyScalar(Math.exp(-9 * dt));
   const pos = segPoint(P.seg, P.s, P.x, P.y, tmpV).add(P.off);
+  if (state === 'run') recordTrail(pos);
   let dyaw = P.seg.yaw - P.yaw; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
   P.yaw += dyaw * Math.min(1, dt * 12);
   astro.root.position.copy(pos);
   const slideDrop = (P.slide > 0 && P.y < 0.05 && state === 'run') ? -0.55 : 0;
   astro.root.position.y += slideDrop;
   astro.root.rotation.y = P.yaw;
+  updateAliens(dt, pos);
 
   // Schatten
-  const onFloor = state === 'run' || (dying && dying.kind === 'crash') || (dying && dying.kind === 'oxygen') || state === 'menu';
+  const onFloor = state === 'run' || (dying && (dying.kind === 'crash' || dying.kind === 'caught')) || state === 'menu';
   astro.shadow.visible = onFloor && !overGap() && P.y < 6;
   astro.shadow.position.set(pos.x, 0.03, pos.z);
   const sc = 1 / (1 + P.y * 0.25); astro.shadow.scale.set(sc, sc, sc);
 
-  // Kamera
+  // Kamera (im Hochformat weiter hinten und höher, damit alle Spuren sichtbar bleiben)
+  const portrait = camera.aspect < 0.9;
   let dc = P.yaw - camYaw; dc = Math.atan2(Math.sin(dc), Math.cos(dc));
   camYaw += dc * Math.min(1, dt * 7);
   const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
-  const camBaseY = dying && (dying.kind === 'gap' || dying.kind === 'edge') ? Math.max(pos.y, -4) : Math.min(pos.y, 3) * 0.5;
-  const back = state === 'menu' ? -5.5 : 7.5, up = state === 'menu' ? 2.2 : 4.3;
+  const falling = dying && (dying.kind === 'gap' || dying.kind === 'edge');
+  const camBaseY = falling ? Math.max(pos.y, -4) : Math.min(pos.y, 3) * 0.5;
+  const back = state === 'menu' ? -5.5 : portrait ? 9.5 : 7.5, up = state === 'menu' ? 2.2 : portrait ? 5.4 : 4.3;
   const target = lookV.set(pos.x - fx * back, camBaseY + up, pos.z - fz * back);
   if (state === 'menu') { // Kamera kreist vor dem Astronauten
-    const a = t * 0.15 + 0.4;
-    target.set(pos.x + Math.sin(a) * 6.5, 2.6, pos.z + Math.cos(a) * 6.5 - 1);
+    const a = t * 0.15 + 0.4, r = portrait ? 9 : 6.5;
+    target.set(pos.x + Math.sin(a) * r, 2.6, pos.z + Math.cos(a) * r - 1);
   }
   if (camInit) { camera.position.copy(target); camInit = false; }
   else camera.position.lerp(target, 1 - Math.exp(-(state === 'menu' ? 3 : 10) * dt));
@@ -1057,7 +1203,7 @@ function updateWorldVisuals(dt, t) {
     camera.position.x += (Math.random() - 0.5) * shake * 0.6; camera.position.y += (Math.random() - 0.5) * shake * 0.6;
   }
   if (state === 'menu') camera.lookAt(pos.x, 1.5, pos.z);
-  else camera.lookAt(pos.x + fx * 6, (dying && dying.kind !== 'crash' && dying.kind !== 'oxygen') ? Math.max(pos.y, -6) + 1 : camBaseY + 1.3, pos.z + fz * 6);
+  else camera.lookAt(pos.x + fx * 6, falling ? Math.max(pos.y, -6) + 1 : camBaseY + 1.3, pos.z + fz * 6);
 
   // Sterne, Himmel, Boden, Licht folgen der Kamera
   stars.position.copy(camera.position);
@@ -1077,32 +1223,72 @@ function updateWorldVisuals(dt, t) {
   }
 }
 
+// ---------- Menü: Planeten wählen & freischalten ----------
+function gravityLabel(g) { return g <= 0.6 ? 'niedrig' : g <= 0.8 ? 'mittel' : 'hoch'; }
+function renderPlanets() {
+  $('wallet').textContent = wallet + ' Coins';
+  $('planets').innerHTML = THEMES.map((T, i) => {
+    const open = unlocked.includes(i), sel = i === runTheme;
+    const rail = '#' + new THREE.Color(T.rail).getHexString(), gr = '#' + new THREE.Color(T.ground).getHexString();
+    const status = sel ? 'Ausgewählt' : open ? 'Bereit' : (wallet >= T.price ? 'Freischalten · ' : 'Gesperrt · ') + T.price;
+    return `<button type="button" role="listitem" class="pl${sel ? ' sel' : ''}${open ? '' : ' locked'}${!open && wallet < T.price ? ' poor' : ''}" data-i="${i}" aria-pressed="${sel}">
+      <span class="orb" style="background:radial-gradient(circle at 35% 35%, ${rail}, ${gr} 70%)"></span>
+      <span class="nm">${T.name}</span>
+      <span class="gv">Schwerkraft ${gravityLabel(T.grav)}</span>
+      <span class="st">${status}</span></button>`;
+  }).join('');
+  $('startBtn').textContent = 'Start ' + PREP[runTheme];
+  const b = bestOf(runTheme);
+  $('menuBest').textContent = b ? 'Rekord ' + PREP[runTheme] + ': ' + b + ' Punkte' : '';
+}
+$('planets').addEventListener('click', e => {
+  const btn = e.target.closest('.pl'); if (!btn) return;
+  const i = +btn.dataset.i, T = THEMES[i];
+  let bought = false;
+  if (!unlocked.includes(i)) {
+    if (wallet < T.price) {
+      $('menuBest').textContent = `Dir fehlen noch ${T.price - wallet} Coins für ${T.name}.`;
+      sfx('stumble'); return;
+    }
+    wallet -= T.price; unlocked.push(i); sfx('shield'); buzz(60);
+    bought = true;
+  }
+  if (runTheme !== i) { runTheme = i; resetGame(); }
+  saveProgress(); renderPlanets();
+  if (bought) $('menuBest').textContent = T.name + ' freigeschaltet!';
+  $('planets').querySelector(`[data-i="${i}"]`).focus();
+});
+
 function startGame() {
   resetGame();
   state = 'run';
   $('menu').hidden = true; $('over').hidden = true; $('pause').hidden = true; $('hud').hidden = false;
-  showBanner(curPlanetNo, THEMES[P.seg.theme]);
-  sfx('planet');
+  showBanner(THEMES[runTheme].name, 'LAUF!', 'Die Aliens sind dir dicht auf den Fersen');
+  sfx('planet'); sfx('alien');
 }
 function pauseGame() { if (state !== 'run') return; state = 'paused'; $('pause').hidden = false; $('resumeBtn').focus(); }
 function resumeGame() { if (state !== 'paused') return; state = 'run'; $('pause').hidden = true; last = performance.now(); }
 function toMenu() {
   state = 'menu'; resetGame();
   $('pause').hidden = true; $('over').hidden = true; $('hud').hidden = true; $('menu').hidden = false;
-  $('menuBest').textContent = best ? 'Rekord: ' + best + ' Punkte' : '';
+  renderPlanets();
 }
 function gameOver() {
   state = 'over';
-  const sc = score(), isNew = sc > best;
-  if (isNew) { best = sc; store.set('astroRunBest', String(best)); }
-  const r = dying.kind === 'crash' ? REASONS.crash[dying.sub] : REASONS[dying.kind];
+  const sc = score(), prevBest = bestOf(runTheme), isNew = sc > prevBest;
+  if (isNew) store.set(bestKey(runTheme), String(sc));
+  wallet += coins; saveProgress();
+  const r = dying.kind === 'crash' || dying.kind === 'caught' ? REASONS[dying.kind][dying.sub] : REASONS[dying.kind];
   $('overTitle').textContent = r[0]; $('overReason').textContent = r[1];
   $('oDist').textContent = Math.floor(distance) + ' m';
-  $('oCrys').textContent = crystals;
+  $('oCrys').textContent = '+' + coins;
   $('oScore').textContent = sc;
-  $('oBest').textContent = best;
+  $('oBest').textContent = Math.max(sc, prevBest);
   $('oNew').hidden = !isNew;
-  $('oPlanets').textContent = planetsVisited === 1 ? 'Besuchte Welt: Mond' : 'Besuchte Welten: ' + planetsVisited;
+  const nextLocked = THEMES.findIndex((T, i) => !unlocked.includes(i));
+  let info = 'Kontostand: ' + wallet + ' Coins';
+  if (nextLocked >= 0) info += wallet >= THEMES[nextLocked].price ? ` · ${THEMES[nextLocked].name} kann freigeschaltet werden!` : ` · ${THEMES[nextLocked].name}: noch ${THEMES[nextLocked].price - wallet}`;
+  $('oPlanets').textContent = info;
   $('hud').hidden = true; $('over').hidden = false;
   $('againBtn').focus();
 }
@@ -1117,13 +1303,23 @@ function syncSoundBtn() { $('soundBtn').textContent = 'Ton: ' + (soundOn ? 'an' 
 $('soundBtn').addEventListener('click', () => { soundOn = !soundOn; store.set('astroRunSound', soundOn ? 'on' : 'off'); syncSoundBtn(); });
 syncSoundBtn();
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
-window.addEventListener('resize', () => {
+function fitCamera() {
   renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
-});
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.fov = camera.aspect < 0.9 ? 74 : 62;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', fitCamera);
+fitCamera();
 
-// Planetenroute im Menü
-$('route').innerHTML = THEMES.map(T => `<span class="p"><i style="background:#${new THREE.Color(T.rail).getHexString()}"></i>${T.name}</span>`).join('<span class="arrow">→</span>');
+// Schnittstelle für die Android-App (Zurück-Taste, App im Hintergrund)
+window.__astroPause = pauseGame;
+window.__astroBack = () => {
+  if (state === 'run') { pauseGame(); return 'handled'; }
+  if (state === 'paused') { resumeGame(); return 'handled'; }
+  if (state === 'over' || state === 'dying') { toMenu(); return 'handled'; }
+  return 'exit';
+};
 
 let last = performance.now();
 function frame(now) {
@@ -1142,7 +1338,7 @@ function frame(now) {
 
 toMenu();
 requestAnimationFrame(frame);
-window.__astro = { get state() { return state; }, P, get distance() { return distance; }, get crystals() { return crystals; }, get oxygen() { return oxygen; }, segments: () => segments, warp(m) { startOffset = m; startGame(); startOffset = 0; }, steer, jump, slide, startGame, inTurnWindow };
+window.__astro = { get state() { return state; }, P, get distance() { return distance; }, get coins() { return coins; }, get oxygen() { return oxygen; }, get alienGap() { return alienGap; }, segments: () => segments, steer, jump, slide, startGame, inTurnWindow };
 })();
 </script>
 </body>
