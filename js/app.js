@@ -398,7 +398,7 @@
     return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }
 
-  function exportCsv() {
+  function tableRows() {
     const rows = [['Rezeptur', state.name], ['pH', state.ph], ['Temperatur °C', state.temp], ['Datum', new Date().toLocaleDateString('de-DE')], ['Bearbeiter/in', state.operator], ['Charge', state.batch], []];
     rows.push(['Endvolumen', 'Komponente', 'M (g/mol)', 'Konzentration', 'Form', 'Menge', 'Einheit', 'Messmittel', 'Grenzwert']);
     lastResults.forEach((res) => {
@@ -412,6 +412,11 @@
       });
       rows.push([vol, 'Wasser (ISO 3696)', '', '', '', `ad ${C.fmtSig(res.volumeMl, 4)}`, 'mL', res.flask.label, res.flask.tol != null ? C.fmtTol(res.flask.tol) : '']);
     });
+    return rows;
+  }
+
+  function exportCsv() {
+    const rows = tableRows();
     const csv = '﻿' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -420,6 +425,33 @@
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  async function copyTable() {
+    const tsv = tableRows().map((r) => r.map((v) => String(v == null ? '' : v).replace(/[\t\n]/g, ' ')).join('\t')).join('\n');
+    try {
+      await navigator.clipboard.writeText(tsv);
+      toast('Tabelle kopiert – in Excel oder ELN einfügen');
+    } catch (e) {
+      toast('Kopieren nicht möglich');
+    }
+  }
+
+  // Zweistufige Bestätigung im Seiteninhalt (statt confirm()-Dialog)
+  function confirmTwice(el, label, action) {
+    if (el.dataset.armed) {
+      clearTimeout(Number(el.dataset.armed));
+      delete el.dataset.armed;
+      el.textContent = el.dataset.label;
+      action();
+      return;
+    }
+    el.dataset.label = el.textContent;
+    el.textContent = label;
+    el.dataset.armed = String(setTimeout(() => {
+      delete el.dataset.armed;
+      el.textContent = el.dataset.label;
+    }, 4000));
   }
 
   async function share() {
@@ -434,6 +466,8 @@
   }
 
   // ---------- Initialisierung ----------
+
+  let savedDeleteArmed = 0;
 
   function init() {
     $('#chem-list').innerHTML = D.CHEMICALS.map((c) => `<option value="${esc(c.name)}">${esc(`${C.fmt(c.M, 2)} g/mol`)}</option>`).join('');
@@ -462,9 +496,8 @@
       const inputs = document.querySelectorAll('.comp .f-name input');
       inputs[inputs.length - 1].focus();
     });
-    $('#clear').addEventListener('click', () => {
-      if (!confirm('Rezeptur wirklich leeren?')) return;
-      load({ components: [], volumes: state.volumes });
+    $('#clear').addEventListener('click', (e) => {
+      confirmTwice(e.currentTarget, 'Wirklich leeren? Erneut klicken', () => load({ components: [], volumes: state.volumes }));
     });
 
     $('#preset').addEventListener('change', (e) => {
@@ -476,7 +509,14 @@
       const v = e.target.value;
       e.target.value = '';
       if (v === '__del') {
-        if (confirm('Alle gespeicherten Rezepturen löschen?')) { storageSet(STORE_KEY, []); renderSaved(); }
+        if (Date.now() - (savedDeleteArmed || 0) < 5000) {
+          storageSet(STORE_KEY, []);
+          renderSaved();
+          toast('Gespeicherte Rezepturen gelöscht');
+        } else {
+          savedDeleteArmed = Date.now();
+          toast('Zum Löschen innerhalb von 5 s erneut wählen');
+        }
         return;
       }
       const r = savedList()[Number(v)];
@@ -509,6 +549,9 @@
     $('#save').addEventListener('click', saveRecipe);
     $('#share').addEventListener('click', share);
     $('#csv').addEventListener('click', exportCsv);
+    $('#copy').addEventListener('click', copyTable);
+    // Eingebettet (z. B. als claude.ai-Seite) sind Drucken, Downloads und Hash-Links nicht verfügbar
+    if (window.PUFFER_EMBED) ['#print', '#csv', '#share'].forEach((sel) => { $(sel).hidden = true; });
     $('#print').addEventListener('click', () => window.print());
     window.addEventListener('beforeprint', () => {
       document.querySelectorAll('details.vol').forEach((d) => { d.open = true; });

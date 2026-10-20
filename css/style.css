@@ -35,6 +35,23 @@
   }
 }
 
+:root[data-theme="dark"] {
+  --bg: #11161c;
+  --surface: #1a2129;
+  --surface-2: #222b35;
+  --text: #e4e9ef;
+  --muted: #9aa6b4;
+  --border: #2f3a46;
+  --accent: #4fb3cf;
+  --accent-text: #0b1a20;
+  --accent-soft: #173540;
+  --warn: #f2b45c;
+  --warn-bg: #3a2a10;
+  --error: #ff8a80;
+  --error-bg: #3d1c1a;
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -44,12 +61,17 @@ body {
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-.wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
 
 .app-header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 18px 0 14px;
+  padding-block: 18px 14px;
   margin-bottom: 18px;
 }
 .app-header h1 { margin: 0; font-size: 1.5rem; }
@@ -84,7 +106,7 @@ input, select, textarea {
   min-width: 0;
   width: 100%;
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+input:focus, select:focus, textarea:focus, .btn:focus-visible, .quick button:focus-visible, .chip button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 input.invalid { border-color: var(--error); }
 
 .btn {
@@ -211,7 +233,7 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-
   body { background: #fff; color: #000; font-size: 11pt; }
   .no-print, .app-header .sub, #h-norm + ul + .formulas + .hint { display: none !important; }
   .print-only { display: block; }
-  .app-header { border: 0; padding: 0; margin: 0 0 8px; }
+  .app-header { border: 0; padding-block: 0; margin: 0 0 8px; }
   .card { border: 0; padding: 0; margin-bottom: 12px; }
   .comp { background: none; }
   input, select, textarea { border: 0; padding: 0; background: none; appearance: none; }
