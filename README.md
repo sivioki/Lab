@@ -7,7 +7,7 @@ Stege fremder Planeten. Mit den Coins, die du unterwegs sammelst, schaltest du n
 Planeten frei.
 
 - **Im Browser:** `astro-run/index.html` öffnen (lädt Three.js und Schriften aus dem Netz).
-- **Android:** Bei jedem Push baut GitHub Actions (Workflow „Android APK“) die Datei
+- **Android:** Bei jedem Push baut GitHub Actions (Workflow „Astro Run APK“) die Datei
   `AstroRun.apk`. Sie liegt im Lauf unter *Artifacts* → `AstroRun-APK` (ZIP mit der APK).
   Auf dem Handy die APK öffnen und „Installation aus unbekannten Quellen“ erlauben.
   Die App läuft komplett offline. Selbst bauen: Ordner `android/` in Android Studio
