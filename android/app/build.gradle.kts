@@ -9,7 +9,7 @@ val wwwOut = layout.buildDirectory.dir("generated/game-assets")
 
 val copyGame by tasks.registering(Copy::class) {
     from(gameDir) {
-        include("index.html", "vendor/**", "audio/audio-data.js")
+        include("index.html", "vendor/**", "audio/audio-data.js", "models/*.js")
         into("www")
     }
     filesMatching("**/index.html") {
@@ -34,8 +34,8 @@ android {
         applicationId = "de.astrorun.game"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.5"
+        versionCode = 8
+        versionName = "1.6"
     }
 
     sourceSets["main"].assets.srcDir(wwwOut)

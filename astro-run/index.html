@@ -132,6 +132,8 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
 .pl.locked .orb { filter: grayscale(.85) brightness(.6); }
 .pl.locked .st { color: var(--coin); }
 .pl.locked.poor .st { color: var(--muted); }
+.sect { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); margin-bottom: -10px; }
+.pl .orb.face { display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 13px; color: #10131c; }
 .menu-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .new-best { color: var(--warn); font-family: var(--display); letter-spacing: .1em; font-size: 13px; }
 @media (max-width: 520px) {
@@ -175,8 +177,11 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
       <div class="wallet" id="wallet">0 Coins</div>
     </div>
     <h1>ASTRO<br>RUN</h1>
-    <p class="lede">Aliens haben deine Rakete gekapert und sind dir dicht auf den Fersen. Renne über die Stege, spring über Krater, rutsch unter Laserschranken durch und verpass keine Kurve. Mit gesammelten Coins schaltest du neue Planeten frei.</p>
+    <p class="lede">Aliens haben deine Rakete gekapert und sind dir dicht auf den Fersen. Renne über die Stege, spring über Krater, rutsch unter Laserschranken durch und verpass keine Kurve. Mit gesammelten Coins schaltest du neue Planeten und Astronauten frei.</p>
+    <div class="sect">Planet</div>
     <div class="planets" id="planets" role="list"></div>
+    <div class="sect">Astronaut</div>
+    <div class="planets" id="chars" role="list"></div>
     <div class="row">
       <button class="btn" id="startBtn" type="button">Auf dem Mond starten</button>
       <button class="btn ghost" id="menuMusicBtn" type="button">Ton an</button>
@@ -189,7 +194,7 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
       <dt>Touch</dt><dd>In die jeweilige Richtung wischen</dd>
     </dl>
     <div class="legend">
-      <span><b style="color:#ffd23f">● Coin</b> zum Freischalten von Planeten</span>
+      <span><b style="color:#ffd23f">● Coin</b> schaltet Planeten und Astronauten frei</span>
       <span><b style="color:#6fb6ff">▮ O₂-Tank</b> füllt Sauerstoff auf</span>
       <span><b style="color:#7dff9a">⬢ Schild</b> fängt einen Treffer ab</span>
       <span><b style="color:#8dff4f">Stolpern</b> über Felsen lässt die Aliens aufholen</span>
@@ -240,6 +245,8 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script src="audio/audio-data.js" async></script>
 <script>
 (() => {
@@ -807,7 +814,7 @@ groundMat.onBeforeCompile = (sh) => {
     .replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb *= 0.75 + 0.35 * (vTerr * 0.5 + 0.5);')
     .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance *= mix(1.0, smoothstep(0.15, -0.6, vTerr) * 1.6, lavaValley);');
 };
-const GROUND_SEG = 220, GROUND_STEP = GROUND_SIZE / GROUND_SEG;
+const GROUND_SEG = 150, GROUND_STEP = GROUND_SIZE / GROUND_SEG;
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE, GROUND_SEG, GROUND_SEG).rotateX(-Math.PI / 2), groundMat);
 ground.position.y = GROUND_Y;
 ground.frustumCulled = false;
@@ -965,7 +972,7 @@ const GEO = {
   cyl6: new THREE.CylinderGeometry(1, 1, 1, 6),
   cyl: new THREE.CylinderGeometry(1, 1, 1, 14),
   cylX: new THREE.CylinderGeometry(1, 1, 1, 16).rotateZ(Math.PI / 2),
-  sphere: new THREE.SphereGeometry(1, 16, 12),
+  sphere: new THREE.SphereGeometry(1, 10, 7), // meist kleine Lichter: wenige Dreiecke reichen
   half: new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2),
   octa: new THREE.OctahedronGeometry(1, 0),
   pillar: new THREE.CylinderGeometry(0.45, 0.8, 1, 10),
@@ -1356,6 +1363,11 @@ function buildSegment(seg) {
       const band = new THREE.Mesh(GEO.ring, PICKUP_MAT.tankBand); band.scale.set(1.05, 1.6, 1.05); m.add(band);
       const valve = new THREE.Mesh(GEO.cyl, PICKUP_MAT.tankBand); valve.scale.set(0.07, 0.14, 0.07); valve.position.y = 0.55; m.add(valve);
       const glow = new THREE.Mesh(GEO.ring, PICKUP_MAT.tankGlow); glow.scale.set(2.2, 1, 2.2); glow.position.y = -0.55; m.add(glow);
+    } else if (propsReady && PROPS.Pickup_Thunder) { // Blitz-Symbol aus dem Quaternius-Paket
+      m = new THREE.Group();
+      const T0 = PROPS.Pickup_Thunder, k = 1.0 / T0.h;
+      for (const part of T0.parts) { const pm = new THREE.Mesh(part.geo, part.mat); pm.scale.setScalar(k); pm.position.y = -(T0.y0 + T0.h / 2) * k; m.add(pm); }
+      const core = new THREE.Mesh(GEO.sphere, PICKUP_MAT.shieldCore); core.scale.setScalar(0.3); m.add(core);
     } else {
       m = new THREE.Group();
       m.add(new THREE.Mesh(GEO.shield, PICKUP_MAT.shield));
@@ -1370,7 +1382,7 @@ function buildSegment(seg) {
   }
 
   // Dekoration in der Landschaft
-  const count = Math.round(seg.len / 6);
+  const count = Math.round(seg.len / 7.5);
   for (let i = 0; i < count; i++) {
     const s = rand(-4, seg.len);
     let side = Math.random() < 0.5 ? -1 : 1;
@@ -1407,7 +1419,56 @@ function buildLowObstacle(seg, T, M, s, x) {
 }
 
 const decorV = new THREE.Vector3();
+const PROP_CHANCE = { mesa: 0.4, spire: 0.45, crystal: 0.3, basalt: 0.45, mushroom: 0.5 };
+const ROCK_TINT = { mesa: 0x9c9ca6, spire: 0, crystal: 0xd2e6ff, basalt: 0x5a463e, mushroom: 0xb9a2e0 };
+const ROCKS = ['Rock_1', 'Rock_2', 'Rock_3', 'Rock_4', 'Rock_Large_1', 'Rock_Large_2', 'Rock_Large_3'];
+const XENON_TREES = ['Tree_Light_1', 'Tree_Light_2', 'Tree_Spiral_1', 'Tree_Spiral_2', 'Tree_Spiral_3', 'Tree_Swirl_1', 'Tree_Swirl_2', 'Tree_Blob_3', 'Tree_Floating_1', 'Tree_Floating_2', 'Tree_Floating_3', 'Tree_Spikes_1', 'Tree_Spikes_2'];
+const XENON_SMALL = ['Bush_1', 'Bush_2', 'Bush_3', 'Plant_1', 'Plant_2', 'Plant_3', 'Grass_1', 'Grass_3'];
+const decorV2 = new THREE.Vector3();
+// Landschaft aus den Quaternius-Modellen; false, wenn nichts gesetzt wurde
+function propDecor(seg, T, s, side, x) {
+  const put = (name, ds, dx, h, yaw, tint) => {
+    const w = segPoint(seg, s + ds, x + dx, 0, decorV2), gy = groundHeight(w.x, w.z) - 0.3;
+    if (Math.abs(x + dx) < 22) h = Math.min(h, -gy - 5); // nahe am Steg nicht in die Sicht ragen
+    return placeProp(seg, name, s + ds, x + dx, gy, h, yaw === undefined ? rand(0, 6.3) : yaw, tint);
+  };
+  const rocks = (n, hmin, hmax) => { for (let i = 0; i < n; i++) put(pick(ROCKS), rand(-7, 7), rand(-7, 7), rand(hmin, hmax), undefined, ROCK_TINT[T.decor]); };
+  const r = Math.random();
+  switch (T.decor) {
+    case 'mesa': // Mond: Forschungsstation oder graue Felsen
+      if (r < 0.14) {
+        if (Math.abs(x) < 22) x = side * 22;
+        const o = side; // Station wächst von der Strecke weg
+        put('Base_Large', 0, 0, 11, 0);
+        put('GeodesicDome', 9, o * 12, 11, 0);
+        put('Building_L', 4, o * 6, 6, Math.PI / 2);
+        for (let i = 0; i < 3; i++) put('SolarPanel_Ground', -9 - i * 5, o * 5, 3.2, 0.3);
+        put('Roof_Radar', -4, o * 14, 7, rand(0, 6.3));
+        put('Roof_Antenna', 12, o * 2, 10, 0);
+        put('Rover_Round', rand(-6, 6), o * 20, 4.5);
+      } else rocks(randi(2, 4), 2, 7);
+      return true;
+    case 'spire': // Mars: Rover, gelandetes Raumschiff, rote Felsen
+      if (r < 0.2) { put('Rover_1', 0, 0, 5.5); rocks(2, 2, 5); }
+      else if (r < 0.3) { put('Spaceship_RaeTheRedPanda', 0, 0, 5); rocks(1, 2, 4); }
+      else rocks(randi(2, 4), 3, 14);
+      return true;
+    case 'crystal': // Europa: vereiste Felsen
+      rocks(randi(2, 3), 3, 9);
+      return true;
+    case 'basalt': // Vulkanus: Lavabäume zwischen dunklen Felsen
+      for (let i = 0; i < randi(1, 3); i++) put(pick(['Tree_Lava_1', 'Tree_Lava_2', 'Tree_Lava_3']), rand(-8, 8), rand(-8, 8), rand(7, 16));
+      if (r < 0.5) rocks(2, 2, 6);
+      return true;
+    case 'mushroom': // Xenon: Alien-Wald
+      for (let i = 0; i < randi(1, 2); i++) put(pick(XENON_TREES), rand(-8, 8), rand(-8, 8), rand(10, 26));
+      for (let i = 0; i < randi(1, 3); i++) put(pick(XENON_SMALL), rand(-9, 9), rand(-9, 9), rand(2.5, 6));
+      return true;
+  }
+  return false;
+}
 function addDecor(seg, T, M, s, side, x) {
+  if (propsReady && Math.random() < PROP_CHANCE[T.decor] && propDecor(seg, T, s, side, x)) return;
   const w = segPoint(seg, s, x, 0, decorV);
   const base = groundHeight(w.x, w.z) - 1.2;
   const put = (geo, mat, ds, dx, y, sx, sy, sz, yaw) => placeMesh(seg, geo, mat, s + ds, x + dx, y, sx, sy, sz, yaw === undefined ? rand(0, 6) : yaw);
@@ -1602,6 +1663,160 @@ function saveProgress() {
   store.set('astroRunUnlocked', JSON.stringify(unlocked));
   store.set('astroRunPlanet', String(runTheme));
 }
+
+// ---------- 3D-Modelle (Quaternius „Ultimate Space Kit“, CC0) ----------
+// Liegen als Base64 in models/*.js und werden erst bei Bedarf geladen. Fehlt etwas,
+// bleiben die selbst gebauten Modelle im Spiel – nichts hängt von den Dateien ab.
+const modelCache = {};
+function loadModel(name) {
+  if (modelCache[name]) return modelCache[name];
+  return modelCache[name] = new Promise((resolve, reject) => {
+    if (!THREE.GLTFLoader) { reject(new Error('GLTFLoader fehlt')); return; }
+    const parse = () => {
+      const b64 = window.ASTRO_MODELS && window.ASTRO_MODELS[name];
+      if (!b64) { reject(new Error('Modell fehlt: ' + name)); return; }
+      const bin = atob(b64), arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      new THREE.GLTFLoader().parse(arr.buffer, '', resolve, reject);
+    };
+    if (window.ASTRO_MODELS && window.ASTRO_MODELS[name]) { parse(); return; }
+    const sc = document.createElement('script');
+    sc.src = 'models/' + name + '.js'; sc.async = true;
+    sc.onload = parse; sc.onerror = () => reject(new Error('Laden fehlgeschlagen: ' + name));
+    document.head.appendChild(sc);
+  });
+}
+
+// Landschaftsteile: je Objekt eine Liste aus (Geometrie in Objekt-Koordinaten, Material)
+const PROPS = {};
+let propsReady = false;
+function preparePropMaterial(m) {
+  m.roughness = 0.85; m.metalness = Math.min(m.metalness || 0, 0.2);
+  m.userData.cast = false; m.userData.receive = false; // stehen tief unter dem Steg, außerhalb des Schattenbereichs
+  if (m.map) m.map.anisotropy = maxAniso;
+  return m;
+}
+loadModel('props').then(g => {
+  const mats = new Map();
+  for (const sc of g.scenes) {
+    sc.updateMatrixWorld(true);
+    const parts = [];
+    sc.traverse(o => {
+      if (!o.isMesh) return;
+      const geo = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld);
+      // verschachtelte Puffer in einfache Listen umwandeln (das Zusammenfügen der Segmente erwartet sie so)
+      for (const key of Object.keys(geo.attributes)) {
+        const at = geo.attributes[key];
+        if (!at.isInterleavedBufferAttribute) continue;
+        const arr = new Float32Array(at.count * at.itemSize);
+        for (let i = 0; i < at.count; i++) for (let c = 0; c < at.itemSize; c++) arr[i * at.itemSize + c] = [at.getX, at.getY, at.getZ, at.getW][c].call(at, i);
+        geo.setAttribute(key, new THREE.BufferAttribute(arr, at.itemSize));
+      }
+      if (!mats.has(o.material)) mats.set(o.material, preparePropMaterial(o.material));
+      parts.push({ geo, mat: o.material });
+    });
+    const box = new THREE.Box3();
+    parts.forEach(p => { p.geo.computeBoundingBox(); box.union(p.geo.boundingBox); });
+    PROPS[sc.name] = { parts, h: box.max.y - box.min.y, y0: box.min.y };
+  }
+  propsReady = true;
+  if (state === 'menu') resetGame(); // Vorschau im Menü gleich mit den neuen Modellen zeigen
+}).catch(() => {});
+
+// gleiche Modelle in Planetenfarben (z. B. graue Mondfelsen statt roter Marsfelsen)
+const tintCache = new Map();
+function tinted(mat, hex) {
+  if (!hex) return mat;
+  const key = mat.uuid + hex;
+  if (!tintCache.has(key)) { // einfarbig statt Farbpalette, damit z. B. Mondfelsen wirklich grau sind
+    const m = mat.clone(); m.map = null; m.color.setHex(hex); m.flatShading = true; m.userData = { ...mat.userData }; tintCache.set(key, m);
+  }
+  return tintCache.get(key);
+}
+// Objekt auf den Boden des Segments stellen; height = gewünschte Höhe in Metern
+function placeProp(seg, name, s, x, y, height, yaw, tint) {
+  const P0 = PROPS[name];
+  if (!P0) return false;
+  const k = height / P0.h;
+  for (const part of P0.parts) {
+    const m = placeMesh(seg, part.geo, tinted(part.mat, tint), s, x, y - P0.y0 * k, k, k, k, yaw);
+    m.userData.uv = null;
+  }
+  return true;
+}
+
+// ---------- Spielfiguren ----------
+const CHARACTERS = [
+  { id: 'classic', name: 'Astro', kind: 'Klassik', price: 0, color: '#e9ecf2' },
+  { id: 'rae', name: 'Rae', kind: 'Roter Panda', price: 0, color: '#e2622b' },
+  { id: 'finn', name: 'Finn', kind: 'Frosch', price: 300, color: '#5cb84a' },
+  { id: 'barbara', name: 'Barbara', kind: 'Biene', price: 600, color: '#f0c22f' },
+  { id: 'fernando', name: 'Fernando', kind: 'Flamingo', price: 1000, color: '#f08cbf' },
+];
+let charUnlocked = (() => { try { const u = JSON.parse(store.get('astroRunChars') || '["classic","rae"]'); return Array.isArray(u) ? u : ['classic', 'rae']; } catch (e) { return ['classic', 'rae']; } })();
+for (const id of ['classic', 'rae']) if (!charUnlocked.includes(id)) charUnlocked.push(id);
+let charId = store.get('astroRunChar') || 'rae';
+if (!CHARACTERS.some(c => c.id === charId) || !charUnlocked.includes(charId)) charId = 'rae';
+
+const rigs = {};       // geladene Figuren je id
+let rig = null;        // aktive animierte Figur (null = klassischer Astronaut)
+const RIG_ANIM = { loop: ['Run', 'Jump_Idle', 'Idle', 'Wave'], fade: 0.14 };
+function makeRig(g, height) {
+  const scene = g.scene;
+  const box = new THREE.Box3().setFromObject(scene);
+  const holder = new THREE.Group();
+  scene.scale.setScalar(height / (box.max.y - box.min.y));
+  scene.position.y = -box.min.y * scene.scale.y;
+  scene.rotation.y = Math.PI; // Modelle schauen nach +Z, das Spiel läuft nach -Z
+  holder.add(scene);
+  scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; if (o.material) { o.material.roughness = Math.max(0.45, o.material.roughness || 0.6); } } });
+  const mixer = new THREE.AnimationMixer(scene), actions = {};
+  for (const clip of g.animations) {
+    const a = mixer.clipAction(clip);
+    if (!RIG_ANIM.loop.includes(clip.name)) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+    actions[clip.name] = a;
+  }
+  return { holder, mixer, actions, cur: null };
+}
+function playRig(r, name, timeScale, restart) {
+  const a = r.actions[name];
+  if (!a) return;
+  if (timeScale) a.timeScale = timeScale;
+  if (r.cur === name && !restart) return;
+  const prev = r.cur && r.actions[r.cur];
+  a.reset(); a.play();
+  if (prev && prev !== a) prev.crossFadeTo(a, RIG_ANIM.fade, false);
+  r.cur = name;
+}
+function useCharacter(id) {
+  charId = id;
+  store.set('astroRunChar', id);
+  if (rig) { astro.root.remove(rig.holder); rig = null; }
+  astro.body.visible = true;
+  if (id === 'classic') return;
+  loadModel('char_' + id).then(g => {
+    if (charId !== id) return;
+    if (!rigs[id]) rigs[id] = makeRig(g, 2.05);
+    rig = rigs[id];
+    rig.cur = null;
+    astro.root.add(rig.holder);
+    astro.body.visible = false;
+  }).catch(() => {});
+}
+
+// Aliens als animierte Modelle: drei Kopien mit eigenem Skelett, leicht unterschiedlich eingefärbt
+const ALIEN_TINT = [0xffffff, 0xa8e6ff, 0xffd0a0];
+loadModel('alien').then(g => {
+  if (!THREE.SkeletonUtils) return;
+  aliens.forEach((a, i) => {
+    const copy = { scene: THREE.SkeletonUtils.clone(g.scene), animations: g.animations };
+    copy.scene.traverse(o => { if (o.isMesh && o.material) { o.material = o.material.clone(); o.material.color.multiply(new THREE.Color(ALIEN_TINT[i])); } });
+    a.rig = makeRig(copy, 2.3);
+    a.root.add(a.rig.holder);
+    a.body.visible = false;
+    playRig(a.rig, 'Run', 1);
+  });
+}).catch(() => {});
 
 // ---------- Spielzustand ----------
 const P = { seg: null, s: 0, lane: 0, x: 0, y: 0, vy: 0, vx: 0, slide: 0, shield: false, off: new THREE.Vector3(), yaw: 0, phase: 0, stumble: 0, land: 0, drop: 0 };
@@ -1970,6 +2185,23 @@ function animateAstronaut(dt) {
   A.body.scale.set(1 + P.land * 0.08, 1 - P.land * 0.16, 1 + P.land * 0.08);
   A.bubble.visible = P.shield;
   if (P.shield) A.bubble.material.opacity = 0.14 + Math.sin(performance.now() / 160) * 0.05;
+  if (rig) animateRig(dt);
+}
+// Animierte Figur: passende Animation zur Spielsituation wählen
+function animateRig(dt) {
+  let name = 'Run', ts = 0.75 + speed * 0.028;
+  if (state === 'menu') { name = 'Wave'; ts = 1; }
+  else if (state === 'run') {
+    if (P.y > 0.05) { name = P.vy > 3 ? 'Jump' : 'Jump_Idle'; ts = 1; }
+    else if (P.slide > 0) { name = 'Duck'; ts = 2.2; }
+    else if (P.stumble > 0) { name = 'HitReact'; ts = 1.4; }
+  } else if (state === 'dying' || state === 'over') {
+    name = dying && (dying.kind === 'gap' || dying.kind === 'edge') ? 'Jump_Idle' : 'Death'; ts = 1;
+  }
+  playRig(rig, name, ts);
+  rig.mixer.update(dt);
+  rig.holder.rotation.z = astro.body.rotation.z;
+  rig.holder.scale.copy(astro.body.scale);
 }
 
 function updateAliens(dt, pos) {
@@ -2000,6 +2232,11 @@ function updateAliens(dt, pos) {
     a.elbowL.rotation.x = a.elbowR.rotation.x = 0.35 + Math.abs(sw) * 0.2;
     a.body.rotation.x = 0.25;
     a.head.rotation.z = Math.sin(a.phase * 0.5) * 0.12;
+    if (a.rig) {
+      const anim = grabbing ? 'Punch' : moving ? 'Run' : 'Idle';
+      playRig(a.rig, anim, anim === 'Run' ? 0.75 + Math.max(speed, 12) * 0.028 : 1);
+      a.rig.mixer.update(dt);
+    }
   });
 }
 
@@ -2015,7 +2252,7 @@ function updateWorldVisuals(dt, t) {
   astro.root.position.copy(pos);
   // Laufen federt leicht, Rutschen senkt den Körper weich ab
   const sliding = P.slide > 0 && P.y < 0.05 && state === 'run';
-  P.drop = damp(P.drop, sliding ? -0.55 : 0, 18, dt);
+  P.drop = damp(P.drop, sliding && !rig ? -0.55 : 0, 18, dt); // die animierten Figuren ducken sich selbst
   const bob = state === 'run' && P.y < 0.05 && !sliding ? Math.abs(Math.cos(P.phase)) * 0.09 : 0;
   astro.root.position.y += P.drop + bob;
   astro.root.rotation.y = P.yaw;
@@ -2079,6 +2316,15 @@ function updateWorldVisuals(dt, t) {
   if (THEMES[envTheme].decor === 'basalt') groundMat.emissiveIntensity = 0.8 + Math.sin(t * 1.3) * 0.2;
   else groundMat.emissiveIntensity = 1;
 
+  // Streckenabschnitte, die ganz im Nebel liegen, gar nicht erst zeichnen
+  const reach = scene.fog.far + 35;
+  for (const seg of segments) {
+    const ex = seg.start.x + seg.dir.x * seg.len, ez = seg.start.z + seg.dir.z * seg.len;
+    const vx = ex - seg.start.x, vz = ez - seg.start.z;
+    const k = clamp(((pos.x - seg.start.x) * vx + (pos.z - seg.start.z) * vz) / (vx * vx + vz * vz), 0, 1);
+    const dx = pos.x - (seg.start.x + vx * k), dz = pos.z - (seg.start.z + vz * k);
+    seg.group.visible = dx * dx + dz * dz < reach * reach;
+  }
   // Pickups drehen; weit entfernte (im Nebel) gar nicht erst zeichnen
   const far2 = (scene.fog.far + 10) ** 2;
   for (const seg of segments) {
@@ -2134,9 +2380,35 @@ $('planets').addEventListener('click', e => {
     bought = true;
   }
   if (runTheme !== i) { runTheme = i; resetGame(); setWind(i); }
-  saveProgress(); renderPlanets();
+  saveProgress(); renderPlanets(); renderChars();
   if (bought) $('menuBest').textContent = T.name + ' freigeschaltet!';
   $('planets').querySelector(`[data-i="${i}"]`).focus();
+});
+
+function renderChars() {
+  $('chars').innerHTML = CHARACTERS.map(c => {
+    const open = charUnlocked.includes(c.id), sel = c.id === charId;
+    const status = sel ? 'Ausgewählt' : open ? 'Bereit' : (wallet >= c.price ? 'Freischalten · ' : 'Gesperrt · ') + c.price;
+    return `<button type="button" role="listitem" class="pl${sel ? ' sel' : ''}${open ? '' : ' locked'}${!open && wallet < c.price ? ' poor' : ''}" data-c="${c.id}" aria-pressed="${sel}">
+      <span class="orb face" style="background:radial-gradient(circle at 35% 35%, #ffffff, ${c.color} 60%)">${c.name[0]}</span>
+      <span class="nm">${c.name}</span>
+      <span class="gv">${c.kind}</span>
+      <span class="st">${status}</span></button>`;
+  }).join('');
+}
+$('chars').addEventListener('click', e => {
+  const btn = e.target.closest('.pl'); if (!btn) return;
+  const c = CHARACTERS.find(x => x.id === btn.dataset.c);
+  if (!charUnlocked.includes(c.id)) {
+    if (wallet < c.price) { $('menuBest').textContent = `Dir fehlen noch ${c.price - wallet} Coins für ${c.name}.`; sfx('stumble'); return; }
+    wallet -= c.price; charUnlocked.push(c.id); store.set('astroRunChars', JSON.stringify(charUnlocked)); saveProgress();
+    sfx('unlock'); buzz(60);
+  }
+  const fresh = btn.classList.contains('locked');
+  useCharacter(c.id);
+  renderPlanets(); renderChars();
+  if (fresh) $('menuBest').textContent = c.name + ' ist jetzt dabei!';
+  $('chars').querySelector(`[data-c="${c.id}"]`).focus();
 });
 
 function startGame() {
@@ -2152,7 +2424,7 @@ function resumeGame() { if (state !== 'paused') return; state = 'run'; $('pause'
 function toMenu() {
   state = 'menu'; resetGame();
   $('pause').hidden = true; $('over').hidden = true; $('hud').hidden = true; $('menu').hidden = false;
-  renderPlanets();
+  renderPlanets(); renderChars();
   resumeAudio(); setMusic('menu'); setWind(runTheme);
 }
 function gameOver() {
@@ -2263,9 +2535,10 @@ function watchFps(raw) {
   }
 }
 
+useCharacter(charId);
 toMenu();
 requestAnimationFrame(frame);
-window.__astro = { get state() { return state; }, P, get distance() { return distance; }, get coins() { return coins; }, get oxygen() { return oxygen; }, get alienGap() { return alienGap; }, get speed() { return speed; }, audio: () => ({ ctx: AU.ctx && AU.ctx.state, bufs: Object.keys(AU.buf).length, mode: AU.mode, stems: !!AU.stems, menu: !!AU.menu, steps: !!AU.steps }), segments: () => segments, steer, jump, slide, startGame, inTurnWindow };
+window.__astro = { get state() { return state; }, P, get distance() { return distance; }, get coins() { return coins; }, get oxygen() { return oxygen; }, get alienGap() { return alienGap; }, get speed() { return speed; }, models: () => ({ tris: renderer.info.render.triangles, calls: renderer.info.render.calls, props: propsReady, n: Object.keys(PROPS).length, rig: rig && rig.cur, aliens: aliens.map(a => a.rig && a.rig.cur), char: charId }), audio: () => ({ ctx: AU.ctx && AU.ctx.state, bufs: Object.keys(AU.buf).length, mode: AU.mode, stems: !!AU.stems, menu: !!AU.menu, steps: !!AU.steps }), segments: () => segments, steer, jump, slide, startGame, inTurnWindow };
 })();
 </script>
 </body>

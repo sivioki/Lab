@@ -48,6 +48,21 @@ Im Pausemenü lässt sich die Grafikqualität wählen (Auto, Hoch, Mittel, Niedr
 Das Tempo steigt ohne Obergrenze immer weiter (Anzeige oben in km/h). Spätere Planeten starten schwieriger. Coins, freigeschaltete Planeten und Rekorde
 (pro Planet) werden auf dem Gerät gespeichert.
 
+### Grafik-Assets
+
+- **3D-Modelle:** aus dem *Ultimate Space Kit* von [Quaternius](https://quaternius.com), CC0 (gemeinfrei). Dazu gehören:
+  - animierte Astronauten: Rae, Finn, Barbara und Fernando,
+  - die Aliens als Verfolger,
+  - Mondstation, Rover und Raumschiff,
+  - Felsen, Lava- und Alien-Bäume, Pflanzen,
+  - das Schild-Symbol.
+
+  Quellen stehen in `astro-run/models/CREDITS.md`.
+- **Astronaut wählen:** im Menü unter „Astronaut“.
+  - Astro (Klassik) und Rae sind frei.
+  - Finn kostet 300 Coins, Barbara 600 und Fernando 1000.
+- Die Modelle werden mit `astro-run/tools/build_models.mjs` aufbereitet und mit `bundle_models.py` gebündelt.
+
 ### Musik und Sound
 
 - **Musik:** eigene Stücke, erzeugt mit `astro-run/tools/make_music.py`. Im Menü läuft ein ruhiger Ambient-Loop. Beim Lauf spielt treibender Synthwave in drei Ebenen: Die Melodie blendet sich mit der Zeit ein, eine bedrohliche Ebene wird lauter, je näher die Aliens sind.
@@ -55,5 +70,5 @@ Das Tempo steigt ohne Obergrenze immer weiter (Anzeige oben in km/h). Spätere P
 - **Wind und Fahrtrauschen** entstehen live und klingen auf jedem Planeten anders.
 - Musik und Effekte lassen sich im Pausemenü getrennt abschalten.
 
-Drittanbieter: Three.js r128 mit Nachbearbeitungs-Modulen (MIT), Schriften Chakra Petch und Barlow (SIL OFL) in
+Drittanbieter: Three.js r128 mit Nachbearbeitungs-, glTF- und Skelett-Modulen (MIT), Schriften Chakra Petch und Barlow (SIL OFL) in
 `astro-run/vendor/`.
