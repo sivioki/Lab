@@ -179,6 +179,7 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
     <div class="planets" id="planets" role="list"></div>
     <div class="row">
       <button class="btn" id="startBtn" type="button">Auf dem Mond starten</button>
+      <button class="btn ghost" id="menuMusicBtn" type="button">Ton an</button>
       <span class="hint" id="menuBest"></span>
     </div>
     <dl class="controls">
@@ -203,7 +204,8 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
     <div class="row">
       <button class="btn" id="resumeBtn" type="button">Weiter</button>
       <button class="btn ghost" id="quitBtn" type="button">Hauptmenü</button>
-      <button class="btn ghost" id="soundBtn" type="button">Ton: an</button>
+      <button class="btn ghost" id="musicBtn" type="button">Musik: an</button>
+      <button class="btn ghost" id="soundBtn" type="button">Effekte: an</button>
       <button class="btn ghost" id="gfxBtn" type="button">Grafik: Auto</button>
     </div>
   </div>
@@ -238,6 +240,7 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 7vw, 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="audio/audio-data.js" async></script>
 <script>
 (() => {
 'use strict';
@@ -314,14 +317,181 @@ const store = {
 const $ = id => document.getElementById(id);
 
 // ---------- Audio ----------
-let actx = null, soundOn = store.get('astroRunSound') !== 'off';
-function sfx(type) {
-  if (!soundOn) return;
+// Musik: eigene Stücke in mehreren Ebenen. Effekte: Kenney (CC0). Wind: live aus Rauschen.
+// Alles kommt aus audio/audio-data.js; fehlt eine Datei, springen einfache Synth-Töne ein.
+let sfxOn = store.get('astroRunSound') !== 'off';
+let musicOn = store.get('astroRunMusic') !== 'off';
+const AU = { ctx: null, master: null, sfx: null, music: null, amb: null, buf: {}, loading: false, menu: null, stems: null, steps: null, wind: null, rush: null, mode: null };
+const MUSIC_VOL = 0.5, SFX_VOL = 0.9;
+function audioCtx() {
+  if (AU.ctx) return AU.ctx;
+  const C = window.AudioContext || window.webkitAudioContext;
+  if (!C) return null;
   try {
-    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-    if (actx.state === 'suspended') actx.resume();
+    const ctx = AU.ctx = new C();
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -12; comp.knee.value = 8; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.2;
+    AU.master = ctx.createGain(); AU.master.connect(comp); comp.connect(ctx.destination);
+    AU.sfx = ctx.createGain(); AU.sfx.gain.value = sfxOn ? SFX_VOL : 0; AU.sfx.connect(AU.master);
+    AU.music = ctx.createGain(); AU.music.gain.value = musicOn ? MUSIC_VOL : 0; AU.music.connect(AU.master);
+    AU.amb = ctx.createGain(); AU.amb.connect(AU.sfx);
+    loadAudio();
+    startAmbience();
+  } catch (e) { AU.ctx = null; }
+  return AU.ctx;
+}
+function loadAudio() {
+  if (AU.loading) return;
+  AU.loading = true;
+  let tries = 0;
+  const go = () => {
+    const data = window.ASTRO_AUDIO;
+    if (!data) { if (++tries < 80) setTimeout(go, 250); return; }
+    for (const name of Object.keys(data)) {
+      const bin = atob(data[name]), arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      try {
+        AU.ctx.decodeAudioData(arr.buffer, b => { AU.buf[name] = b; if (name.startsWith('music/')) syncMusic(); }, () => {});
+      } catch (e) {}
+    }
+  };
+  go();
+}
+// beim ersten Tippen/Taste starten (Browser erlauben Ton erst nach einer Eingabe)
+['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, () => {
+  const ctx = audioCtx();
+  if (ctx && ctx.state === 'suspended' && state !== 'paused' && !document.hidden) ctx.resume();
+  syncMusic();
+}, { passive: true }));
+
+function playBuf(name, vol, rate, dest) {
+  const b = AU.ctx && AU.buf[name];
+  if (!b) return false;
+  const s = AU.ctx.createBufferSource(), g = AU.ctx.createGain();
+  s.buffer = b; s.playbackRate.value = rate || 1; g.gain.value = vol;
+  s.connect(g); g.connect(dest || AU.sfx); s.start();
+  return true;
+}
+function loopSource(name, vol, fade, dest, when) {
+  const b = AU.buf[name];
+  if (!b) return null;
+  const ctx = AU.ctx, t = when || ctx.currentTime;
+  const s = ctx.createBufferSource(), g = ctx.createGain();
+  s.buffer = b; s.loop = true;
+  g.gain.setValueAtTime(0, ctx.currentTime); g.gain.linearRampToValueAtTime(vol, t + fade);
+  s.connect(g); g.connect(dest || AU.music); s.start(t);
+  return { src: s, gain: g };
+}
+function fadeOut(node, t) {
+  if (!node) return;
+  const now = AU.ctx.currentTime;
+  node.gain.gain.cancelScheduledValues(now);
+  node.gain.gain.setValueAtTime(node.gain.gain.value, now);
+  node.gain.gain.linearRampToValueAtTime(0, now + t);
+  try { node.src.stop(now + t + 0.05); } catch (e) {}
+}
+// Musik-Modus: 'menu', 'run' oder null (Stille)
+function setMusic(mode) { AU.mode = mode; syncMusic(); }
+function syncMusic() {
+  if (!AU.ctx) return;
+  if (AU.mode !== 'menu' && AU.menu) { fadeOut(AU.menu, 0.8); AU.menu = null; }
+  if (AU.mode !== 'run' && AU.stems) { AU.stems.forEach(s => fadeOut(s, 0.9)); AU.stems = null; }
+  if (AU.mode === 'menu' && !AU.menu) AU.menu = loopSource('music/menu', 1, 2.5);
+  if (AU.mode === 'run' && !AU.stems && ['run_core', 'run_lead', 'run_tense'].every(n => AU.buf['music/' + n])) {
+    const when = AU.ctx.currentTime + 0.05; // alle Ebenen exakt gleichzeitig starten
+    AU.stems = [loopSource('music/run_core', 1, 0.6, null, when), loopSource('music/run_lead', 0, 0.1, null, when), loopSource('music/run_tense', 0, 0.1, null, when)];
+  }
+}
+// Ebenen je nach Spielsituation mischen (jedes Bild aufgerufen)
+function mixMusic() {
+  if (!AU.ctx || !AU.stems) return;
+  const now = AU.ctx.currentTime;
+  const lead = clamp((runTime - 6) / 10, 0, 1) * (0.9 + clamp((speed - 20) / 30, 0, 0.6));
+  const tense = clamp((ALIEN_NEAR + 3 - alienGap) / 6, 0, 1) * 1.1 + (oxygen <= 0 ? 0.6 : 0);
+  AU.stems[1].gain.gain.setTargetAtTime(lead * 3, now, 0.6);
+  AU.stems[2].gain.gain.setTargetAtTime(Math.min(1.2, tense), now, 0.35);
+}
+
+// Wind und Fahrtrauschen aus gefiltertem Rauschen, je Planet anders
+const WIND = [
+  { type: 'lowpass', f: 260, q: 0.5, vol: 0.05 },   // Mond: fast still, leises Brummen im Anzug
+  { type: 'bandpass', f: 520, q: 0.6, vol: 0.22 },  // Mars: Staubwind
+  { type: 'bandpass', f: 1600, q: 0.8, vol: 0.09 }, // Europa: eisiges Zischen
+  { type: 'lowpass', f: 160, q: 0.9, vol: 0.35 },   // Vulkanus: Grollen
+  { type: 'bandpass', f: 900, q: 1.4, vol: 0.1 },   // Xenon: säuselnder Dschungel
+];
+function startAmbience() {
+  const ctx = AU.ctx, n = ctx.sampleRate * 3, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < n; i++) { last = last * 0.97 + (Math.random() * 2 - 1) * 0.03 * 8; d[i] = Math.random() * 2 - 1 + last * 0.5; }
+  const mk = () => { const s = ctx.createBufferSource(); s.buffer = b; s.loop = true; s.loopEnd = 3; return s; };
+  const w = mk(), wf = ctx.createBiquadFilter(), wg = ctx.createGain(), lfo = ctx.createOscillator(), lfoG = ctx.createGain();
+  wg.gain.value = 0; lfo.frequency.value = 0.13; lfoG.gain.value = 0.35;
+  lfo.connect(lfoG); lfoG.connect(wg.gain); // Böen
+  w.connect(wf); wf.connect(wg); wg.connect(AU.amb); w.start(); lfo.start();
+  const r = mk(), rf = ctx.createBiquadFilter(), rg = ctx.createGain();
+  rf.type = 'highpass'; rf.frequency.value = 2200; rg.gain.value = 0;
+  r.connect(rf); rf.connect(rg); rg.connect(AU.amb); r.start(Math.random());
+  AU.wind = { f: wf, g: wg, lfoG }; AU.rush = rg;
+  setWind(runTheme);
+}
+function setWind(i) {
+  if (!AU.wind) return;
+  const W = WIND[i], now = AU.ctx.currentTime;
+  AU.wind.f.type = W.type; AU.wind.f.frequency.setTargetAtTime(W.f, now, 0.5); AU.wind.f.Q.value = W.q;
+  AU.wind.g.gain.setTargetAtTime(W.vol, now, 0.8); AU.wind.lfoG.gain.value = W.vol * 0.4;
+}
+// Schritte und Fahrtwind passend zum Lauf (jedes Bild aufgerufen)
+function mixRunSounds() {
+  if (!AU.ctx) return;
+  const now = AU.ctx.currentTime, running = state === 'run';
+  AU.rush && AU.rush.gain.setTargetAtTime(running ? clamp((speed - 16) / 45, 0, 1) * 0.12 : 0, now, 0.3);
+  if (running && !AU.steps && AU.buf['sfx/steps']) AU.steps = loopSource('sfx/steps', 0, 0.1, AU.sfx);
+  if (!AU.steps) return;
+  const onGround = running && P.y < 0.05 && P.slide <= 0;
+  AU.steps.gain.gain.setTargetAtTime(onGround ? 0.22 : 0, now, 0.04);
+  AU.steps.src.playbackRate.setTargetAtTime(clamp(0.85 + speed * 0.018, 0.85, 2.1), now, 0.2);
+  if (!running) { fadeOut(AU.steps, 0.2); AU.steps = null; }
+}
+
+let coinStreak = 0, coinT = 0;
+const SFX = { // Name → [Dateien, Lautstärke, Tonhöhe, Zufallsstreuung]
+  jump: [['sfx/jump_a', 'sfx/jump_b', 'sfx/jump_c'], 0.5, 1.05, 0.08],
+  land: [['sfx/land'], 0.55, 1, 0.1],
+  slide: [['sfx/slide'], 0.35, 1.1, 0.1],
+  turn: [['sfx/turn'], 0.8, 1, 0.05],
+  o2: [['sfx/o2'], 0.8, 0.8, 0],
+  shield: [['sfx/shield'], 0.7, 1.1, 0],
+  block: [['sfx/shield_hit'], 0.9, 0.9, 0.05],
+  crash: [['sfx/crash'], 0.9, 0.85, 0.05],
+  laser: [['sfx/laser'], 0.6, 1, 0],
+  fall: [['sfx/fall'], 0.9, 0.7, 0],
+  stumble: [['sfx/stumble'], 0.9, 1, 0.08],
+  alien: [['sfx/alien'], 0.75, 0.72, 0.12],
+  click: [['sfx/click'], 0.7, 1, 0.05],
+  planet: [['music/unlock'], 0.45, 0.8, 0],
+  unlock: [['music/unlock'], 0.9, 1, 0],
+};
+function sfx(type) {
+  if (!sfxOn) return;
+  const ctx = audioCtx();
+  if (!ctx) return;
+  if (ctx.state === 'suspended' && state !== 'paused') ctx.resume();
+  if (type === 'coin') { // aufeinanderfolgende Coins klingen immer etwas höher
+    const now = ctx.currentTime;
+    coinStreak = now - coinT < 0.6 ? coinStreak + 1 : 0; coinT = now;
+    if (playBuf('sfx/coin', 0.5, 1 + Math.min(0.6, coinStreak * 0.05))) return;
+  } else if (SFX[type]) {
+    const [names, vol, rate, jit] = SFX[type];
+    if (playBuf(pick(names), vol, rate * (1 + (Math.random() * 2 - 1) * jit))) return;
+  }
+  synthSfx(type);
+}
+function synthSfx(type) {
+  try {
+    const actx = AU.ctx;
     const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
-    o.connect(g); g.connect(actx.destination);
+    o.connect(g); g.connect(AU.sfx);
     const set = (wave, f0, f1, dur, vol) => {
       o.type = wave; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
       g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.start(t); o.stop(t + dur + 0.02);
@@ -334,14 +504,20 @@ function sfx(type) {
       case 'slide': set('sawtooth', 220, 90, 0.2, 0.04); break;
       case 'turn': set('square', 500, 760, 0.08, 0.04); break;
       case 'o2': set('sine', 500, 1100, 0.3, 0.1); break;
-      case 'shield': set('triangle', 300, 1400, 0.4, 0.09); break;
+      case 'shield': case 'unlock': set('triangle', 300, 1400, 0.4, 0.09); break;
       case 'block': set('square', 900, 200, 0.25, 0.07); break;
       case 'crash': set('sawtooth', 260, 40, 0.6, 0.14); break;
       case 'fall': set('sine', 700, 60, 1.2, 0.1); break;
       case 'planet': set('triangle', 440, 880, 0.6, 0.08); break;
+      case 'land': set('sine', 160, 60, 0.08, 0.08); break;
     }
   } catch (e) {}
 }
+function playJingle(name) { if (AU.ctx && musicOn) playBuf('music/' + name, 1, 1, AU.music); }
+function setSfxOn(on) { sfxOn = on; store.set('astroRunSound', on ? 'on' : 'off'); if (AU.sfx) AU.sfx.gain.setTargetAtTime(on ? SFX_VOL : 0, AU.ctx.currentTime, 0.05); }
+function setMusicOn(on) { musicOn = on; store.set('astroRunMusic', on ? 'on' : 'off'); if (AU.music) AU.music.gain.setTargetAtTime(on ? MUSIC_VOL : 0, AU.ctx.currentTime, 0.1); }
+function suspendAudio() { if (AU.ctx && AU.ctx.state === 'running') AU.ctx.suspend(); }
+function resumeAudio() { if (AU.ctx && AU.ctx.state === 'suspended' && !document.hidden) AU.ctx.resume(); }
 
 // ---------- Renderer & Szene ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -1623,11 +1799,12 @@ function die(kind, sub) {
   if (state !== 'run') return;
   state = 'dying';
   dying = { kind, sub, t: 0, v: speed };
-  if (kind === 'crash' || kind === 'caught') { sfx('crash'); shake = 0.8; buzz([60, 40, 160]); }
+  if (kind === 'crash' || kind === 'caught') { sfx('crash'); if (sub === 'high') sfx('laser'); shake = 0.8; buzz([60, 40, 160]); }
   else { sfx('fall'); buzz(200); }
   if (kind === 'caught') sfx('alien');
   $('turnHint').classList.remove('on');
   $('alienWarn').classList.remove('on');
+  setMusic(null);
 }
 
 // ---------- HUD ----------
@@ -1666,7 +1843,7 @@ function updateRun(dt) {
   speed = speedAt(runTime);
   const tier = Math.floor(speed / 10);
   if (tier > speedTier) {
-    if (speedTier) toast('Schneller! ' + Math.round(speed * 3.6) + ' km/h', '#ffb347');
+    if (speedTier) { toast('Schneller! ' + Math.round(speed * 3.6) + ' km/h', '#ffb347'); sfx('o2'); }
     speedTier = tier;
   }
   let v = speed;
@@ -1689,6 +1866,7 @@ function updateRun(dt) {
     if (P.y <= 0) {
       if (overGap()) { die('gap'); return; }
       P.land = Math.min(1, -P.vy / 18); P.y = 0; P.vy = 0;
+      sfx('land');
     }
   } else if (overGap()) { die('gap'); return; }
   if (P.slide > 0) P.slide -= dt;
@@ -1952,10 +2130,10 @@ $('planets').addEventListener('click', e => {
       $('menuBest').textContent = `Dir fehlen noch ${T.price - wallet} Coins für ${T.name}.`;
       sfx('stumble'); return;
     }
-    wallet -= T.price; unlocked.push(i); sfx('shield'); buzz(60);
+    wallet -= T.price; unlocked.push(i); sfx('unlock'); buzz(60);
     bought = true;
   }
-  if (runTheme !== i) { runTheme = i; resetGame(); }
+  if (runTheme !== i) { runTheme = i; resetGame(); setWind(i); }
   saveProgress(); renderPlanets();
   if (bought) $('menuBest').textContent = T.name + ' freigeschaltet!';
   $('planets').querySelector(`[data-i="${i}"]`).focus();
@@ -1967,16 +2145,19 @@ function startGame() {
   $('menu').hidden = true; $('over').hidden = true; $('pause').hidden = true; $('hud').hidden = false;
   showBanner(THEMES[runTheme].name, 'LAUF!', 'Die Aliens sind dir dicht auf den Fersen');
   sfx('planet'); sfx('alien');
+  setMusic('run');
 }
-function pauseGame() { if (state !== 'run') return; state = 'paused'; $('pause').hidden = false; $('resumeBtn').focus(); }
-function resumeGame() { if (state !== 'paused') return; state = 'run'; $('pause').hidden = true; last = performance.now(); }
+function pauseGame() { if (state !== 'run') return; state = 'paused'; $('pause').hidden = false; $('resumeBtn').focus(); suspendAudio(); }
+function resumeGame() { if (state !== 'paused') return; state = 'run'; $('pause').hidden = true; last = performance.now(); resumeAudio(); }
 function toMenu() {
   state = 'menu'; resetGame();
   $('pause').hidden = true; $('over').hidden = true; $('hud').hidden = true; $('menu').hidden = false;
   renderPlanets();
+  resumeAudio(); setMusic('menu'); setWind(runTheme);
 }
 function gameOver() {
   state = 'over';
+  playJingle('gameover');
   const sc = score(), prevBest = bestOf(runTheme), isNew = sc > prevBest;
   if (isNew) store.set(bestKey(runTheme), String(sc));
   wallet += coins; saveProgress();
@@ -2001,10 +2182,18 @@ $('menuBtn').addEventListener('click', toMenu);
 $('quitBtn').addEventListener('click', toMenu);
 $('resumeBtn').addEventListener('click', resumeGame);
 $('pauseBtn').addEventListener('click', () => state === 'run' ? pauseGame() : resumeGame());
-function syncSoundBtn() { $('soundBtn').textContent = 'Ton: ' + (soundOn ? 'an' : 'aus'); }
-$('soundBtn').addEventListener('click', () => { soundOn = !soundOn; store.set('astroRunSound', soundOn ? 'on' : 'off'); syncSoundBtn(); });
+function syncSoundBtn() {
+  $('soundBtn').textContent = 'Effekte: ' + (sfxOn ? 'an' : 'aus');
+  $('musicBtn').textContent = 'Musik: ' + (musicOn ? 'an' : 'aus');
+  $('menuMusicBtn').textContent = (musicOn || sfxOn) ? 'Ton an' : 'Ton aus';
+}
+$('soundBtn').addEventListener('click', () => { setSfxOn(!sfxOn); syncSoundBtn(); });
+$('musicBtn').addEventListener('click', () => { setMusicOn(!musicOn); syncSoundBtn(); });
+$('menuMusicBtn').addEventListener('click', () => { const on = !(musicOn || sfxOn); setMusicOn(on); setSfxOn(on); syncSoundBtn(); });
 syncSoundBtn();
-document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
+// Klick-Geräusch für alle Knöpfe
+document.addEventListener('click', e => { if (e.target.closest('button')) sfx('click'); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { pauseGame(); suspendAudio(); } else if (state !== 'paused') resumeAudio(); });
 function fitCamera() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(window.innerWidth, window.innerHeight); }
@@ -2027,7 +2216,8 @@ $('gfxBtn').addEventListener('click', () => {
 syncGfxBtn();
 
 // Schnittstelle für die Android-App (Zurück-Taste, App im Hintergrund)
-window.__astroPause = pauseGame;
+window.__astroPause = () => { pauseGame(); suspendAudio(); };
+window.__astroResume = () => { if (state !== 'paused') resumeAudio(); };
 window.__astroBack = () => {
   if (state === 'run') { pauseGame(); return 'handled'; }
   if (state === 'paused') { resumeGame(); return 'handled'; }
@@ -2049,6 +2239,7 @@ function frame(now) {
     animateAstronaut(dt);
     lerpEnv(dt);
     updateWorldVisuals(dt, t);
+    mixMusic(); mixRunSounds();
   }
   if (composer) { finalPass.uniforms.time.value = t % 100; composer.render(dt); }
   else renderer.render(scene, camera);
@@ -2074,7 +2265,7 @@ function watchFps(raw) {
 
 toMenu();
 requestAnimationFrame(frame);
-window.__astro = { get state() { return state; }, P, get distance() { return distance; }, get coins() { return coins; }, get oxygen() { return oxygen; }, get alienGap() { return alienGap; }, get speed() { return speed; }, segments: () => segments, steer, jump, slide, startGame, inTurnWindow };
+window.__astro = { get state() { return state; }, P, get distance() { return distance; }, get coins() { return coins; }, get oxygen() { return oxygen; }, get alienGap() { return alienGap; }, get speed() { return speed; }, audio: () => ({ ctx: AU.ctx && AU.ctx.state, bufs: Object.keys(AU.buf).length, mode: AU.mode, stems: !!AU.stems, menu: !!AU.menu, steps: !!AU.steps }), segments: () => segments, steer, jump, slide, startGame, inTurnWindow };
 })();
 </script>
 </body>

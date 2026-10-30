@@ -120,6 +120,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         web.onResume();
+        web.evaluateJavascript("window.__astroResume && window.__astroResume()", null);
         hideSystemBars();
     }
 

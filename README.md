@@ -48,5 +48,12 @@ Im Pausemenü lässt sich die Grafikqualität wählen (Auto, Hoch, Mittel, Niedr
 Das Tempo steigt ohne Obergrenze immer weiter (Anzeige oben in km/h). Spätere Planeten starten schwieriger. Coins, freigeschaltete Planeten und Rekorde
 (pro Planet) werden auf dem Gerät gespeichert.
 
+### Musik und Sound
+
+- **Musik:** eigene Stücke, erzeugt mit `astro-run/tools/make_music.py`. Im Menü läuft ein ruhiger Ambient-Loop. Beim Lauf spielt treibender Synthwave in drei Ebenen: Die Melodie blendet sich mit der Zeit ein, eine bedrohliche Ebene wird lauter, je näher die Aliens sind.
+- **Soundeffekte:** von [Kenney](https://kenney.nl), CC0 (gemeinfrei). Quellen in `astro-run/audio/CREDITS.md`.
+- **Wind und Fahrtrauschen** entstehen live und klingen auf jedem Planeten anders.
+- Musik und Effekte lassen sich im Pausemenü getrennt abschalten.
+
 Drittanbieter: Three.js r128 mit Nachbearbeitungs-Modulen (MIT), Schriften Chakra Petch und Barlow (SIL OFL) in
 `astro-run/vendor/`.
