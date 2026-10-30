@@ -1,7 +1,8 @@
 // Baut die 3D-Modelle für Astro Run aus dem Quaternius "Ultimate Space Kit" (CC0).
 // Aufruf (im Ordner mit installiertem @gltf-transform/core, @gltf-transform/functions und meshoptimizer):
 //   node build_models.mjs <pfad/zum/ultimate-space-kit> <ausgabeordner>
-// Ergebnis: char_*.glb (je ein Astronaut), alien.glb (Verfolger) und props.glb (Landschaft, eine Szene je Objekt).
+// Ergebnis: char_*.glb (Astronauten), mech_*.glb (Mechs), alien.glb (Verfolger und spielbarer Alien)
+// und props.glb (Landschaft, eine Szene je Objekt).
 import { NodeIO, Document, VertexLayout } from '@gltf-transform/core';
 import { prune, dedup, resample, mergeDocuments, unpartition, weld, simplify } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
@@ -12,7 +13,9 @@ const [src, out] = process.argv.slice(2);
 const io = new NodeIO().setVertexLayout(VertexLayout.SEPARATE);
 
 const CHAR_ANIMS = ['Run', 'Jump', 'Jump_Idle', 'Jump_Land', 'Duck', 'Death', 'HitReact', 'Idle', 'Wave'];
-const ALIEN_ANIMS = ['Run', 'Punch', 'Idle'];
+const ALIEN_ANIMS = ['Run', 'Punch', 'Idle', 'Jump', 'Jump_Idle', 'Duck', 'Death', 'HitReact', 'Wave']; // Verfolger und spielbarer Alien
+const MECH_ANIMS = ['Run', 'Jump', 'Pickup', 'HitRecieve_1', 'Death', 'Hello', 'Idle'];
+const MECHS = { rae: 'Mech_RaeTheRedPanda', finn: 'Mech_FinnTheFrog', barbara: 'Mech_BarbaraTheBee', fernando: 'Mech_FernandoTheFlamingo' };
 const CHARS = { rae: 'Astronaut_RaeTheRedPanda', finn: 'Astronaut_FinnTheFrog', barbara: 'Astronaut_BarbaraTheBee', fernando: 'Astronaut_FernandoTheFlamingo' };
 const PROPS = [
   'Environment/Base_Large', 'Environment/GeodesicDome', 'Environment/SolarPanel_Ground', 'Environment/Roof_Radar',
@@ -40,6 +43,7 @@ async function character(name, keep, outName, dropNodes = []) {
 }
 
 for (const [id, name] of Object.entries(CHARS)) await character(name, CHAR_ANIMS, `char_${id}.glb`, ['Pistol']);
+for (const [id, name] of Object.entries(MECHS)) await character(name, MECH_ANIMS, `mech_${id}.glb`);
 await character('Enemy_Large', ALIEN_ANIMS, 'alien.glb');
 
 // Landschaft: alle Objekte in ein Dokument, eine benannte Szene je Objekt, gemeinsame Textur

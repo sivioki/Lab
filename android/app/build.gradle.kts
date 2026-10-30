@@ -34,8 +34,8 @@ android {
         applicationId = "de.astrorun.game"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.6"
+        versionCode = 9
+        versionName = "1.7"
     }
 
     sourceSets["main"].assets.srcDir(wwwOut)

@@ -45,7 +45,7 @@ Im Pausemenü lässt sich die Grafikqualität wählen (Auto, Hoch, Mittel, Niedr
 | Vulkanus | 800 Coins | hoch | Lava und Basaltsäulen |
 | Xenon | 1500 Coins | mittel | Leuchtender Pilzdschungel, Ringplanet |
 
-Das Tempo steigt ohne Obergrenze immer weiter (Anzeige oben in km/h). Spätere Planeten starten schwieriger. Coins, freigeschaltete Planeten und Rekorde
+Das Tempo steigt ohne Obergrenze immer weiter, aber sanft: etwa 110 km/h nach einer Minute, gut 200 km/h nach fünf (Anzeige oben). Spätere Planeten starten schwieriger. Coins, freigeschaltete Planeten und Rekorde
 (pro Planet) werden auf dem Gerät gespeichert.
 
 ### Grafik-Assets
@@ -58,9 +58,19 @@ Das Tempo steigt ohne Obergrenze immer weiter (Anzeige oben in km/h). Spätere P
   - das Schild-Symbol.
 
   Quellen stehen in `astro-run/models/CREDITS.md`.
-- **Astronaut wählen:** im Menü unter „Astronaut“.
-  - Astro (Klassik) und Rae sind frei.
-  - Finn kostet 300 Coins, Barbara 600 und Fernando 1000.
+- **Figuren:** 13 Stück, im Menü unter „Figur“. Gesperrte Figuren lassen sich als Vorschau ansehen; ein zweites Tippen schaltet sie frei.
+
+  | Figur | Preis |
+  | --- | --- |
+  | Astro (Klassik), Rae (Roter Panda) | frei |
+  | Astro Rot (Mars-Anzug) | 150 |
+  | Finn (Frosch) | 300 |
+  | Schatten (Tarnanzug) | 450 |
+  | Barbara (Biene) | 600 |
+  | Fernando (Flamingo) | 1000 |
+  | Rae-, Finn-, Barbara-, Fernando-Mech | 1500, 2000, 2500, 3000 |
+  | Astro Gold | 4000 |
+  | Zork (Überläufer-Alien) | 5000 |
 - Die Modelle werden mit `astro-run/tools/build_models.mjs` aufbereitet und mit `bundle_models.py` gebündelt.
 
 ### Musik und Sound
